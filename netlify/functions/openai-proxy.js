@@ -44,7 +44,7 @@ export const handler = async (event) => {
         if (action === 'generatePlans' && data.userInput) {
              // Call OpenAI for plan generation (Chat Completion)
              const response = await openai.chat.completions.create({
-                 model: "gpt-4", // Using gpt-4 as originally intended, now without response_format
+                 model: "gpt-3.5-turbo", // CHANGED to potentially faster model
                  messages: [
                      // --- PASTE YOUR FULL SYSTEM PROMPT FOR PLAN GENERATION HERE ---
                      { role: "system", content: `You are BirthdayPlannerAI, an expert event planner specializing in creating memorable birthday celebrations. Your task is to help users plan the perfect birthday event by generating personalized recommendations based on their preferences. You will maintain a friendly, enthusiastic tone while providing practical and creative suggestions.` },
@@ -52,28 +52,27 @@ export const handler = async (event) => {
                      { role: "user", content: `Generate three distinct birthday plans for a ${data.userInput.age}-year-old with a ${data.userInput.theme} theme. Budget level: ${data.userInput.budget}. Location: ${data.userInput.location.city} (${data.userInput.location.setting}). Guest count: ${data.userInput.guestCount}. Preferred activities: ${data.userInput.activities.join(', ')}. Additional preferences: ${data.userInput.additionalPreferences || 'None'}. Return the response as a valid JSON object containing a single key "plans" which is an array of three plan objects. Each plan should include: 1. A unique id, name, and brief description 2. Venue recommendation with name, description, cost range, amenities, and suitability 3. Activity schedule with time slots 4. Catering suggestions with menu items (appetizers array, mainCourses array, desserts string, beverages array), estimated cost, and serving style 5. Guest engagement ideas with icebreakers, interactive elements, photo opportunities, and party favors. The first plan should be DIY-focused and budget-friendly. The second plan should focus on premium experiences with convenience as a priority. The third plan should highlight unique, memorable activities or adventure elements.` }
                  ],
                  temperature: 0.7,
-                 // Ensure this line is REMOVED: response_format: { type: "json_object" },
+                 // response_format removed previously
              });
              const content = response.choices[0]?.message?.content;
              if (!content) throw new Error("No content returned from OpenAI chat completion (generatePlans)");
-             // Assuming the prompt ensures JSON string output, parse it
              responseData = JSON.parse(content);
 
         } else if (action === 'generateInvitation' && data.plan && data.template && data.date && data.time) {
             // Generate invitation text
             const textResponse = await openai.chat.completions.create({
-                model: "gpt-4", // Using gpt-4
+                model: "gpt-3.5-turbo", // CHANGED to potentially faster model
                 messages: [
-                     // --- PASTE YOUR FULL SYSTEM PROMPT FOR INVITATION TEXT HERE ---
+                    // --- PASTE YOUR FULL SYSTEM PROMPT FOR INVITATION TEXT HERE ---
                     { role: "system", content: `You are an expert in creating engaging and appropriate birthday invitations.` },
-                     // --- PASTE YOUR FULL USER PROMPT FOR INVITATION TEXT HERE (using data.plan, data.date, etc.) ---
+                    // --- PASTE YOUR FULL USER PROMPT FOR INVITATION TEXT HERE (using data.plan, data.date, etc.) ---
                     { role: "user", content: `Create a birthday invitation text for a ${data.plan.description} birthday. The event will be at ${data.plan.venue.name} on ${data.date} at ${data.time}. The style should be ${data.template}. Keep it concise but engaging, and include all necessary details.` }
                 ],
                 temperature: 0.7,
             });
              const text = textResponse.choices[0]?.message?.content || "Join us for a birthday celebration!";
 
-            // Generate invitation image
+            // Generate invitation image (Keep DALL-E 3)
             const imageResponse = await openai.images.generate({
                 model: "dall-e-3",
                 prompt: `Create a birthday invitation image for a ${data.plan.description} themed birthday party. Style: ${data.template}. No text in the image.`,
@@ -87,7 +86,7 @@ export const handler = async (event) => {
         } else if (action === 'optimizeBudget' && data.plan && data.priorities) {
              // Call OpenAI for budget optimization (Chat Completion)
              const response = await openai.chat.completions.create({
-                 model: "gpt-4", // Using gpt-4
+                 model: "gpt-3.5-turbo", // CHANGED to potentially faster model
                  messages: [
                     // --- PASTE YOUR FULL SYSTEM PROMPT FOR BUDGET OPTIMIZATION HERE ---
                      { role: "system", content: `You are a budget optimization expert for event planning.` },
@@ -95,11 +94,10 @@ export const handler = async (event) => {
                      { role: "user", content: `Optimize this birthday plan: ${JSON.stringify(data.plan)} based on the following budget priorities (1-5 scale, 5 being highest priority): Venue: ${data.priorities.venue} Food & Beverages: ${data.priorities.food} Activities & Entertainment: ${data.priorities.activities} Decorations: ${data.priorities.decorations} Party Favors: ${data.priorities.partyFavors}. Return an optimized version of the plan as valid JSON object containing a single key "optimizedPlan". Maintain the same structure but with adjustments to reflect the priorities. Increase quality/options for high-priority items and suggest cost-saving alternatives for low-priority items.` }
                  ],
                  temperature: 0.7,
-                 // Ensure this line is REMOVED: response_format: { type: "json_object" },
+                 // response_format removed previously
              });
              const content = response.choices[0]?.message?.content;
              if (!content) throw new Error("No content returned from OpenAI budget optimization");
-             // Assuming the prompt ensures JSON string output, parse it
              responseData = JSON.parse(content);
 
         } else {
@@ -112,21 +110,16 @@ export const handler = async (event) => {
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify(responseData), // Send the data back to the frontend
+            body: JSON.stringify(responseData),
         };
 
     } catch (error) {
-        // Log the detailed error on the server side
         console.error('Error processing request in Netlify function:', error);
-
-        // Check if the error came from the OpenAI client
         const status = error.status || error.response?.status || 500;
         const message = error.message || 'An internal server error occurred.';
-
         return {
             statusCode: status,
             headers,
-            // Return error message in a consistent format
             body: JSON.stringify({ error: message }),
         };
     }
