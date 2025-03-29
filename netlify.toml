@@ -6,6 +6,7 @@
 
 [functions]
   directory = "netlify/functions" # Standard directory for Netlify functions
+  timeout = 26                    # Requesting timeout increase to 26 seconds
   # Optional: Specify node version for functions if needed
   # node_bundler = "esbuild" # Use esbuild for faster function bundling
   # node_version = "18" # Example: Set Node.js version
