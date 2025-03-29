@@ -1,0 +1,11 @@
+# Netlify configuration file
+
+[build]
+  command = "npm run build" # Your build command
+  publish = "dist"          # Your publish directory
+
+[functions]
+  directory = "netlify/functions" # Standard directory for Netlify functions
+  # Optional: Specify node version for functions if needed
+  # node_bundler = "esbuild" # Use esbuild for faster function bundling
+  # node_version = "18" # Example: Set Node.js version
