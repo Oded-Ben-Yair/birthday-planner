@@ -1,147 +1,200 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+// Import necessary types, assuming SmartInvitationType is defined in types/index.ts
 import type { BirthdayPlan, SmartInvitation as SmartInvitationType } from '../types';
+// Import the API utility function (ensure path is correct)
 import { generateSmartInvitation } from '../utils/api';
 
+// Props for the component - primarily needs the selected plan
 interface SmartInvitationProps {
     selectedPlan: BirthdayPlan;
+    // Note: This component handles its own state and API call,
+    // it doesn't necessarily need onClose or isOpen from a parent modal,
+    // but it will be *rendered* by InvitationCreatorModal which handles open/close.
 }
 
+/**
+ * SmartInvitation Component
+ * Allows users to select options and generate AI-powered invitation text and images.
+ */
 export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) {
+    // State for user selections
     const [template, setTemplate] = useState<'classic' | 'playful' | 'themed' | 'minimalist'>('themed');
-    const [date, setDate] = useState("");
+    const [date, setDate] = useState(""); // Consider pre-filling from selectedPlan.date if available?
     const [time, setTime] = useState("");
+
+    // State for API results and status
     const [invitation, setInvitation] = useState<SmartInvitationType | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    /**
+     * Handles the click event for the "Generate Invitation" button.
+     * Validates inputs and calls the backend API.
+     */
     const handleGenerateInvitation = async () => {
+        // Basic validation for date and time
         if (!date || !time) {
-            setError('Please select a date and time for the event');
+            setError('Please select a date and time for the event.');
             return;
         }
-        setIsLoading(true); // Corrected placement from user's code
+        setIsLoading(true);
         setError(null);
+        setInvitation(null); // Clear previous invitation
+
         try {
-            // Corrected line break from user's code
+            console.log(`Generating invitation for plan: ${selectedPlan.id}, Template: ${template}, Date: ${date}, Time: ${time}`);
+            // Call the API utility function
             const result = await generateSmartInvitation(selectedPlan, template, date, time);
-            setInvitation(result);
+
+            // Assuming the API returns { text: string, imageUrl: string, template: string }
+            if (result && result.text && result.imageUrl) {
+                setInvitation(result); // Set the state with the generated invitation data
+                console.log("Invitation generation successful.");
+            } else {
+                console.error("Invalid response structure from generateSmartInvitation API:", result);
+                throw new Error("Received an unexpected response from the invitation generator.");
+            }
         } catch (err) {
-            setError('Failed to generate invitation. Please try again.');
-            console.error(err);
+            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+            setError(`Failed to generate invitation: ${errorMessage}`);
+            console.error("Invitation Generation Error:", err);
         } finally {
-            setIsLoading(false);
+            setIsLoading(false); // Hide loading state
         }
     };
 
+    // --- Render Component UI ---
     return (
-        <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold mb-4">Smart Invitation</h2>
+        // Use a fragment or a div wrapper if needed within the modal body
+        <>
+            {/* Section for selecting options (only shown if invitation hasn't been generated yet) */}
             {!invitation ? (
-                <div className="space-y-4">
+                <div className="space-y-6">
+                    {/* Template Selection */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                             Select Template Style
                         </label>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                            {['classic', 'playful', 'themed', 'minimalist'].map((style) => (
+                            {(['classic', 'playful', 'themed', 'minimalist'] as const).map((style) => (
                                 <div
                                     key={style}
-                                    onClick={() => setTemplate(style as any)}
-                                    // Corrected className formatting from user's code
-                                    className={`border rounded-md p-3 text-center cursor-pointer ${
+                                    onClick={() => setTemplate(style)}
+                                    className={`border rounded-md p-3 text-center cursor-pointer transition-colors duration-150 ease-in-out ${
                                         template === style
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-200 hover:border-blue-300'
+                                            ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-300' // Enhanced selected style
+                                            : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'
                                     }`}
                                 >
-                                    <span className="capitalize">{style}</span>
+                                    <span className="capitalize text-sm font-medium">{style}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
+
+                    {/* Date and Time Inputs */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 mb-1">
                                 Event Date
                             </label>
                             <input
                                 type="date"
+                                id="eventDate"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
-                                // Added space before className
-                                className="w-full p-2 border rounded-md"
+                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label htmlFor="eventTime" className="block text-sm font-medium text-gray-700 mb-1">
                                 Event Time
                             </label>
                             <input
                                 type="time"
+                                id="eventTime"
                                 value={time}
                                 onChange={(e) => setTime(e.target.value)}
-                                className="w-full p-2 border rounded-md"
+                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             />
                         </div>
                     </div>
+
+                    {/* Error Display */}
                     {error && (
-                        <div className="text-red-500 text-sm">{error}</div>
+                        <div className="text-red-600 bg-red-100 border border-red-300 p-3 rounded-md text-sm">{error}</div>
                     )}
-                    <div className="flex justify-end">
+
+                    {/* Generate Button */}
+                    <div className="flex justify-end pt-4 border-t border-gray-200">
                         <button
                             onClick={handleGenerateInvitation}
-                            disabled={isLoading}
-                            // Corrected className formatting from user's code
-                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-blue-300"
+                            disabled={isLoading || !date || !time} // Disable if loading or date/time missing
+                            className="px-6 py-2 bg-teal-600 text-white font-semibold rounded-md shadow hover:bg-teal-700 disabled:bg-teal-300 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-50 transition duration-150 ease-in-out"
                         >
                             {isLoading ? 'Generating...' : 'Generate Invitation'}
                         </button>
                     </div>
                 </div>
             ) : (
-                <div className="space-y-4">
-                    <div className="border rounded-md overflow-hidden">
+                // Section for displaying the generated invitation
+                <div className="space-y-6">
+                    <div className="border rounded-lg overflow-hidden shadow-sm">
+                        {/* Display Generated Image */}
                         {invitation.imageUrl ? (
                             <img
                                 src={invitation.imageUrl}
-                                alt="Birthday Invitation"
-                                className="w-full h-64 object-cover"
+                                alt={`Generated ${invitation.template} invitation for ${selectedPlan.name}`}
+                                className="w-full h-auto object-contain max-h-96 bg-gray-100" // Adjust styling as needed
+                                // Add error handling for image loading
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null; // Prevent infinite loop
+                                    target.src = 'https://placehold.co/1024x1024/cccccc/ffffff?text=Image+Error'; // Placeholder
+                                    console.error("Failed to load invitation image:", invitation.imageUrl);
+                                }}
                             />
                         ) : (
                             <div className="w-full h-64 bg-gray-200 flex items-center justify-center">
-                                <span className="text-gray-500">Image not available</span>
+                                <span className="text-gray-500">Image generation failed or not available</span>
                             </div>
                         )}
-                    </div> {/* Added closing div that seemed missing in user provided code based on indentation */}
-                    <div className="p-4 bg-white">
-                        <div className="prose max-w-none">
-                            {/* Corrected potential split issue if text is null/undefined */}
-                            {(invitation.text || '').split('\n').map((line, i) => (
-                                <p key={i}>{line}</p>
-                            ))}
+
+                        {/* Display Generated Text */}
+                        <div className="p-4 bg-white">
+                            {/* Using prose for nice text formatting, max-w-none to prevent width constraints */}
+                            <div className="prose prose-sm max-w-none text-gray-800">
+                                {(invitation.text || 'Invitation text could not be generated.').split('\n').map((line, i) => (
+                                    // Render each line as a paragraph, handling potential empty lines
+                                    line.trim() === '' ? <br key={i} /> : <p key={i}>{line}</p>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                    <div className="flex justify-between">
+
+                    {/* Action Buttons for Generated Invitation */}
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                        {/* Button to go back and generate a new one */}
                         <button
-                            onClick={() => setInvitation(null)}
-                            // Corrected className formatting from user's code
-                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                            onClick={() => { setInvitation(null); setError(null); }} // Clear current invitation and error
+                            className="px-4 py-2 bg-gray-300 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out"
                         >
-                            Create New
+                            &larr; Create New
                         </button>
+                        {/* Button to "Save/Share" (currently just an alert) */}
                         <button
                             onClick={() => {
-                                // Corrected alert string to be single line
-                                alert('Invitation saved! In a real app, this would save or share the invitation.');
+                                // In a real app, implement saving/sharing logic here
+                                alert('Invitation "saved"! Implement actual save/share functionality.');
                             }}
-                            // Corrected className formatting from user's code
-                            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out"
                         >
-                            Save & Share
+                            Save / Share {/* Add appropriate icon later? */}
                         </button>
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
+

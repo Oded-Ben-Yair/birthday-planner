@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import EditPlanSectionModal from '../components/EditPlanSectionModal';
-// Import BudgetOptimizer component - Assuming it exists or will be created
-// import BudgetOptimizerModal from '../components/BudgetOptimizerModal'; // Or whatever the component name is
-import { optimizeBudget } from '../utils/api'; // Import the API function
-// Import types from the central types file
+// *** Import the new BudgetOptimizerModal ***
+import BudgetOptimizerModal from '../components/BudgetOptimizerModal';
+// Removed optimizeBudget import as API call is handled within BudgetOptimizer component
+// import { optimizeBudget } from '../utils/api';
+// Import types
 import type {
     BirthdayPlan,
-    UserInput, // Import UserInput
-    BudgetPriorities, // Import BudgetPriorities
+    UserInput,
+    BudgetPriorities, // Still needed if we pass priorities *up*? No, handled internally.
     Venue,
     Catering,
     GuestEngagement,
@@ -18,29 +19,36 @@ import type {
 
 /**
  * PlanDetail Component
- * Displays plan details, allows editing, and includes budget optimization trigger.
+ * Displays plan details, allows editing, and integrates Budget Optimizer Modal.
  */
 const PlanDetail: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
   const navigate = useNavigate();
   const [plan, setPlan] = useState<BirthdayPlan | null>(null);
-  const [userInput, setUserInput] = useState<UserInput | null>(null); // State for user input
+  const [userInput, setUserInput] = useState<UserInput | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // General error state
+  const [editError, setEditError] = useState<string | null>(null); // Specific error for edit saving
+  const [optimizeError, setOptimizeError] = useState<string | null>(null); // Specific error for optimization
+
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [dataToEdit, setDataToEdit] = useState<any>(null);
-  const [isOptimizerOpen, setIsOptimizerOpen] = useState<boolean>(false); // State for optimizer modal
-  const [isOptimizing, setIsOptimizing] = useState<boolean>(false); // Loading state for optimization API call
+  const [isOptimizerOpen, setIsOptimizerOpen] = useState<boolean>(false);
+  // *** Removed isOptimizing state - handled within BudgetOptimizer component ***
+  // const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
 
   // --- Load Initial Plan Data & User Input ---
   useEffect(() => {
+    // ... (keep existing useEffect logic to load plan and userInput) ...
     setIsLoading(true);
-    setError(null);
+    setError(null); // Clear general errors on load
+    setEditError(null);
+    setOptimizeError(null);
     setPlan(null);
-    setUserInput(null); // Reset user input
+    setUserInput(null);
     setEditingSection(null);
     setDataToEdit(null);
-    setIsOptimizerOpen(false); // Ensure optimizer modal is closed on load
+    setIsOptimizerOpen(false);
 
     console.log(`PlanDetail: useEffect running for planId: ${planId}`);
 
@@ -51,7 +59,7 @@ const PlanDetail: React.FC = () => {
     }
 
     const storedPlansString = localStorage.getItem('generatedPlans');
-    const storedUserInputString = localStorage.getItem('userInput'); // Load user input string
+    const storedUserInputString = localStorage.getItem('userInput');
 
     console.log(`PlanDetail: Value from localStorage.getItem('generatedPlans'):`, storedPlansString ? storedPlansString.substring(0, 100) + '...' : storedPlansString);
     console.log(`PlanDetail: Value from localStorage.getItem('userInput'):`, storedUserInputString ? storedUserInputString.substring(0, 100) + '...' : storedUserInputString);
@@ -60,13 +68,12 @@ const PlanDetail: React.FC = () => {
     if (!storedPlansString || !storedUserInputString) {
         setError("Plan data or user input missing from storage.");
         setIsLoading(false);
-        // Optionally navigate home: navigate('/');
         return;
     }
 
     try {
       const storedPlans: BirthdayPlan[] = JSON.parse(storedPlansString);
-      const parsedUserInput: UserInput = JSON.parse(storedUserInputString); // Parse user input
+      const parsedUserInput: UserInput = JSON.parse(storedUserInputString);
       console.log("PlanDetail: Successfully parsed plans and user input from storage.");
 
       const foundPlan = storedPlans.find(p => p.id === planId);
@@ -74,7 +81,7 @@ const PlanDetail: React.FC = () => {
       if (foundPlan) {
         console.log("PlanDetail: Plan found:", foundPlan);
         setPlan(foundPlan);
-        setUserInput(parsedUserInput); // Set user input state
+        setUserInput(parsedUserInput);
       } else {
         console.warn(`PlanDetail: Plan with ID ${planId} not found within the stored plans array.`);
         throw new Error(`Plan with ID ${planId} not found.`);
@@ -86,12 +93,12 @@ const PlanDetail: React.FC = () => {
       setIsLoading(false);
       console.log("PlanDetail: useEffect finished.");
     }
-  }, [planId]); // Rerun effect if planId changes
+  }, [planId]);
 
   // --- Modal Control Functions ---
   const handleEditClick = (section: keyof BirthdayPlan | string) => {
     // ... (keep existing handleEditClick logic) ...
-    if (!plan) return;
+     if (!plan) return;
     let currentData: any;
     if (Object.prototype.hasOwnProperty.call(plan, section)) {
          currentData = plan[section as keyof BirthdayPlan];
@@ -101,17 +108,18 @@ const PlanDetail: React.FC = () => {
     }
     setDataToEdit(currentData);
     setEditingSection(section);
+    setEditError(null); // Clear edit errors when opening modal
   };
   const handleCloseModal = () => {
     setEditingSection(null);
     setDataToEdit(null);
   };
   const handleSaveChanges = (updatedData: any) => {
-    // ... (keep existing handleSaveChanges logic) ...
+    // ... (keep existing handleSaveChanges logic, maybe use setEditError) ...
     if (!plan || !editingSection) return;
     const updatedPlan: BirthdayPlan = { ...plan, [editingSection]: updatedData };
     setPlan(updatedPlan);
-    setError(null);
+    setEditError(null); // Clear previous edit errors
     try {
       const currentStoredPlansString = localStorage.getItem('generatedPlans');
       if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving.");
@@ -123,16 +131,17 @@ const PlanDetail: React.FC = () => {
       console.log("PlanDetail: Plan updated successfully in localStorage.");
     } catch (err: any) {
       console.error("PlanDetail: Error saving plan changes to localStorage:", err);
-      setError("Failed to save changes. Please try again.");
+      setEditError("Failed to save changes. Please try again."); // Use specific error state
     }
   };
 
   // --- Budget Optimizer Handlers ---
   const handleOpenOptimizer = () => {
       if (!plan || !userInput) {
-          setError("Cannot open optimizer: Plan or User Input data is missing.");
+          setError("Cannot open optimizer: Plan or User Input data is missing."); // Use general error state for this
           return;
       }
+      setOptimizeError(null); // Clear previous optimizer errors
       setIsOptimizerOpen(true);
   };
 
@@ -140,79 +149,33 @@ const PlanDetail: React.FC = () => {
       setIsOptimizerOpen(false);
   };
 
-  /**
-   * Called when the optimizer component successfully returns an optimized plan.
-   * Updates the current plan state and saves to localStorage.
-   */
+  /** Called when the optimizer component successfully returns an optimized plan. */
   const handleBudgetOptimized = (optimizedPlanData: BirthdayPlan) => {
       console.log("PlanDetail: Received optimized plan:", optimizedPlanData);
-      if (!plan) return; // Should have a plan if optimizer was opened
+      if (!plan) return;
 
-      // Create a new plan object merging optimization summary if needed
-      // The API currently returns the full optimized plan object in { optimizedPlan: ... }
-      const updatedPlan = { ...optimizedPlanData }; // Assuming optimizedPlanData is the full plan
-
+      const updatedPlan = { ...optimizedPlanData };
       setPlan(updatedPlan); // Update state with the optimized plan
-      setError(null); // Clear previous errors
+      setOptimizeError(null); // Clear previous optimizer errors
 
       // Save the updated plan list back to localStorage
       try {
           const currentStoredPlansString = localStorage.getItem('generatedPlans');
           if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving optimized plan.");
-
           const storedPlans: BirthdayPlan[] = JSON.parse(currentStoredPlansString);
-          const planIndex = storedPlans.findIndex(p => p.id === planId); // Use original planId
-
+          const planIndex = storedPlans.findIndex(p => p.id === planId);
           if (planIndex === -1) throw new Error(`Original plan with ID ${planId} not found in storage during optimized save.`);
-
-          storedPlans[planIndex] = updatedPlan; // Replace with the optimized version
+          storedPlans[planIndex] = updatedPlan;
           localStorage.setItem('generatedPlans', JSON.stringify(storedPlans));
           console.log("PlanDetail: Optimized plan updated successfully in localStorage.");
-
       } catch (err: any) {
           console.error("PlanDetail: Error saving optimized plan changes to localStorage:", err);
-          setError("Failed to save optimized changes. Please try again.");
-          // Consider reverting state if save fails? setPlan(plan);
+          setOptimizeError("Failed to save optimized changes. Please try again."); // Use specific error state
       }
-
       setIsOptimizerOpen(false); // Close the optimizer modal
   };
 
-   /**
-    * Handles the actual API call triggered from the optimizer modal/component.
-    * This function would likely be passed down to the optimizer component.
-    */
-   const runBudgetOptimization = async (priorities: BudgetPriorities) => {
-        if (!plan || !userInput) {
-            setError("Missing plan or user input data for optimization.");
-            return;
-        }
-        setIsOptimizing(true);
-        setError(null);
-        try {
-            console.log("PlanDetail: Running budget optimization with priorities:", priorities);
-            const response = await optimizeBudget(
-                plan, // The current plan to optimize
-                priorities,
-                userInput.budgetAmount, // Original budget target
-                userInput.currency // Original currency
-            );
-            // Assuming response = { optimizedPlan: BirthdayPlan }
-            if (response && response.optimizedPlan) {
-                handleBudgetOptimized(response.optimizedPlan); // Update state with the result
-            } else {
-                 throw new Error("Invalid response received from budget optimization API.");
-            }
-        } catch (err: any) {
-             console.error("PlanDetail: Error during budget optimization API call:", err);
-             setError(`Budget optimization failed: ${err.message || 'Unknown error'}`);
-             // Keep the modal open for the user to see the error? Or close it?
-             // setIsOptimizerOpen(false);
-        } finally {
-            setIsOptimizing(false);
-        }
-   };
-
+   // *** Removed runBudgetOptimization function - logic is now within BudgetOptimizer component ***
 
   // --- Helper to render list items ---
   const renderList = (items: string[] | string | undefined, title: string) => {
@@ -235,34 +198,43 @@ const PlanDetail: React.FC = () => {
 
   // --- Render Logic ---
   if (isLoading) return <div className="p-6 text-center">Loading plan details...</div>;
-  const displayError = error ? <div className="p-4 mb-4 text-center text-red-600 bg-red-100 border border-red-300 rounded-md">{error}</div> : null;
+  // Display general loading errors
+  const displayLoadError = error ? <div className="p-4 mb-4 text-center text-red-600 bg-red-100 border border-red-300 rounded-md">{error}</div> : null;
   if (!plan && !isLoading) return <div className="p-6 text-center text-red-600">Error: {error || 'Plan data could not be loaded.'}</div>;
   if (!plan) return null;
 
+  // Display specific operational errors (like save/optimize failures)
+   const displayEditError = editError ? <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 border border-red-300 rounded-md">{editError}</div> : null;
+   const displayOptimizeError = optimizeError ? <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 border border-red-300 rounded-md">{optimizeError}</div> : null;
+
+
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-4xl font-inter relative">
-      {displayError}
+      {displayLoadError} {/* Show loading errors first */}
+      {displayEditError} {/* Show editing save errors */}
+      {displayOptimizeError} {/* Show optimization save errors */}
+
 
        {/* Back Button */}
        <button onClick={() => navigate('/results')} className="absolute top-4 left-4 mb-4 px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out z-10" aria-label="Back to results">
             &larr; Back to Results
        </button>
 
-       {/* Optimize Budget Button Added Here */}
+       {/* Optimize Budget Button */}
        <button
             onClick={handleOpenOptimizer}
             className="absolute top-4 right-4 mb-4 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition duration-150 ease-in-out z-10"
             aria-label="Optimize Budget"
-            disabled={!userInput} // Disable if userInput hasn't loaded
+            disabled={!userInput || !plan} // Disable if plan or userInput hasn't loaded
         >
-           Optimize Budget {/* Maybe add an icon later */}
+           Optimize Budget
        </button>
 
 
       {/* Plan Name & Profile */}
-      <div className="flex justify-between items-start mb-6 pb-2 border-b border-gray-300 pt-16"> {/* Keep pt-16 */}
-        {/* ... (keep existing name/profile display) ... */}
-         <div>
+      <div className="flex justify-between items-start mb-6 pb-2 border-b border-gray-300 pt-16">
+         {/* ... (keep existing name/profile display) ... */}
+          <div>
             <h1 className="text-3xl font-bold">{plan.name ?? 'Unnamed Plan'}</h1>
             {plan.profile && <p className="text-sm text-gray-500 mt-1">Profile: {plan.profile}</p>}
         </div>
@@ -271,7 +243,7 @@ const PlanDetail: React.FC = () => {
         )}
       </div>
 
-      {/* Optimization Summary (Display if present) */}
+      {/* Optimization Summary */}
       {plan.optimizationSummary && (
            <section className="mb-6 p-4 border border-green-200 rounded-lg shadow-sm bg-green-50">
                <h2 className="text-xl font-semibold text-green-800 mb-2">Optimization Summary</h2>
@@ -279,17 +251,17 @@ const PlanDetail: React.FC = () => {
            </section>
       )}
 
-
+      {/* Render all other sections as before */}
       {/* Description Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          {/* ... (keep existing description display) ... */}
-         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-xl font-semibold text-gray-700">Description</h2>
-           {Object.prototype.hasOwnProperty.call(plan, 'description') && (
-               <button onClick={() => handleEditClick('description')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
-           )}
-        </div>
-        <p className="text-gray-600 whitespace-pre-wrap">{plan.description ?? 'No description available.'}</p>
+          <div className="flex justify-between items-center mb-3">
+           <h2 className="text-xl font-semibold text-gray-700">Description</h2>
+            {Object.prototype.hasOwnProperty.call(plan, 'description') && (
+                <button onClick={() => handleEditClick('description')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
+            )}
+         </div>
+         <p className="text-gray-600 whitespace-pre-wrap">{plan.description ?? 'No description available.'}</p>
       </section>
 
       {/* Date Section */}
@@ -305,7 +277,6 @@ const PlanDetail: React.FC = () => {
                <p className="text-gray-600"> { (() => { try { const dateObj = new Date(plan.date); if (isNaN(dateObj.getTime())) return 'Invalid date format'; return dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }); } catch (e) { console.error("Error formatting date:", e); return 'Invalid date'; } })() } </p>
             </section>
        )}
-
 
       {/* Venue Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
@@ -334,7 +305,7 @@ const PlanDetail: React.FC = () => {
       {/* Catering Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          {/* ... (keep existing catering display) ... */}
-          <div className="flex justify-between items-center mb-3">
+         <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Catering</h2>
             {Object.prototype.hasOwnProperty.call(plan, 'catering') && (
                 <button onClick={() => handleEditClick('catering')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
@@ -362,41 +333,16 @@ const PlanDetail: React.FC = () => {
         onSave={handleSaveChanges}
       />
 
-      {/* Render Budget Optimizer Modal (Placeholder) */}
-      {/*
+      {/* *** Render the actual BudgetOptimizerModal *** */}
+      {/* Pass necessary props down */}
       <BudgetOptimizerModal
           isOpen={isOptimizerOpen}
           onClose={handleCloseOptimizer}
-          currentPlan={plan}
-          userInput={userInput}
-          onOptimize={runBudgetOptimization} // Pass the function to run optimization
-          isOptimizing={isOptimizing} // Pass loading state
+          currentPlan={plan} // Pass the whole plan
+          userInput={userInput} // Pass the user input for budget/currency
+          onPlanUpdate={handleBudgetOptimized} // Pass the handler to update the plan
+          // Removed isOptimizing prop as it's handled internally by BudgetOptimizer
       />
-      */}
-       {/* Temporary message while component is missing */}
-       {isOptimizerOpen && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-               <div className="bg-white p-6 rounded-lg shadow-xl">
-                   <h3 className="text-lg font-medium mb-4">Budget Optimizer</h3>
-                   <p className="text-sm text-gray-600 mb-4">Budget Optimizer component/modal needs to be created/integrated here.</p>
-                   <p className="text-xs text-gray-500 mb-4">Requires inputs for priorities (Venue, Food, etc.) and triggers the API call.</p>
-                    {/* Display loading state */}
-                    {isOptimizing && <p className="text-blue-600">Optimizing...</p>}
-                    {/* Display error state within modal */}
-                    {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-                   <button onClick={handleCloseOptimizer} className="mt-4 px-4 py-2 bg-gray-200 rounded-md text-sm">Close</button>
-                   {/* Placeholder button to test API call logic */}
-                   {/* <button
-                        onClick={() => runBudgetOptimization({ venue: 3, food: 4, activities: 5, decorations: 2, partyFavors: 1 })}
-                        className="mt-4 ml-2 px-4 py-2 bg-purple-600 text-white rounded-md text-sm"
-                        disabled={isOptimizing}
-                   >
-                       Test Optimize API (Dummy Priorities)
-                   </button> */}
-               </div>
-           </div>
-       )}
-
 
     </div>
   );
