@@ -35,8 +35,10 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
                 const planDate = new Date(selectedPlan.date);
                  // Check if the date is valid before formatting
                 if (!isNaN(planDate.getTime())) {
-                    const formattedDate = planDate.toISOString().split('T')[0];
-                    setDate(formattedDate);
+                    // Adjust for timezone offset to get correct YYYY-MM-DD in local time
+                    const tzoffset = planDate.getTimezoneOffset() * 60000; // offset in milliseconds
+                    const localISOTime = (new Date(planDate.getTime() - tzoffset)).toISOString().split('T')[0];
+                    setDate(localISOTime);
                 } else {
                     console.warn("Plan date is invalid:", selectedPlan.date);
                     setDate(""); // Reset if invalid
@@ -154,7 +156,7 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
                     )}
 
                     {/* Generate Button */}
-                    <div className="flex justify-end pt-4 border-t border-gray-200">
+                    <div className="flex justify-end pt-4 mt-4 border-t border-gray-200"> {/* Added mt-4 */}
                         <button
                             onClick={handleGenerateInvitation}
                             disabled={isLoading || !date || !time} // Disable if loading or date/time missing
@@ -222,7 +224,7 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
                     </div>
                 </div>
             )}
-        </div> // Changed fragment to div wrapper
+        </div> // Closing div wrapper
     );
 }
 
