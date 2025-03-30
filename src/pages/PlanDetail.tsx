@@ -15,39 +15,39 @@ interface ScheduleItem {
 // Assumed structure based on logs (Ideally defined in src/types/index.ts)
 interface VenueDetails {
   name: string;
-  address?: string; // Making address optional as it might not always be present/needed
+  address?: string;
   contact?: string;
   description?: string;
   costRange?: string;
-  amenities?: string[];
+  amenities?: string[] | string; // Allow string as fallback based on error
   suitability?: string;
-  venueSearchSuggestions?: string[]; // Added based on logs
+  venueSearchSuggestions?: string[];
 }
 
 // Assumed structure based on logs (Ideally defined in src/types/index.ts)
 interface MenuItem {
-    appetizers?: string[];
-    mainCourses?: string[];
-    desserts?: string[];
-    beverages?: string[];
+    appetizers?: string[] | string; // Allow string as fallback
+    mainCourses?: string[] | string; // Allow string as fallback
+    desserts?: string[] | string; // Allow string as fallback
+    beverages?: string[] | string; // Allow string as fallback
 }
 
 // Assumed structure based on logs (Ideally defined in src/types/index.ts)
 interface CateringDetails {
   estimatedCost?: string;
   servingStyle?: string;
-  menu?: MenuItem; // Use the MenuItem interface
-  cateringSearchSuggestions?: string[]; // Added based on logs
+  menu?: MenuItem;
+  cateringSearchSuggestions?: string[];
 }
 
 // Assumed structure based on logs (Ideally defined in src/types/index.ts)
 interface GuestEngagementDetails {
-    icebreakers?: string[];
-    interactiveElements?: string[];
-    photoOpportunities?: string[];
-    partyFavors?: string[];
-    techIntegration?: string[];
-    entertainmentSearchSuggestions?: string[]; // Added based on logs
+    icebreakers?: string[] | string; // Allow string as fallback
+    interactiveElements?: string[] | string; // Allow string as fallback
+    photoOpportunities?: string[] | string; // Allow string as fallback
+    partyFavors?: string[] | string; // Allow string as fallback
+    techIntegration?: string[] | string; // Allow string as fallback
+    entertainmentSearchSuggestions?: string[];
 }
 
 
@@ -56,13 +56,12 @@ interface Plan {
   id: string;
   name: string;
   description: string;
-  profile?: string; // Added based on logs
+  profile?: string;
   date: string;
-  venue: VenueDetails; // Use the detailed Venue interface
+  venue: VenueDetails;
   schedule: ScheduleItem[];
-  catering?: CateringDetails; // Use the detailed Catering interface
-  guestEngagement?: GuestEngagementDetails; // Added based on logs
-  // Add other plan properties as needed
+  catering?: CateringDetails;
+  guestEngagement?: GuestEngagementDetails;
 }
 
 /**
@@ -96,7 +95,7 @@ const PlanDetail: React.FC = () => {
     }
 
     const storedPlansString = localStorage.getItem('generatedPlans');
-    console.log(`PlanDetail: Value from localStorage.getItem('generatedPlans'):`, storedPlansString ? storedPlansString.substring(0, 100) + '...' : storedPlansString); // Log truncated value
+    console.log(`PlanDetail: Value from localStorage.getItem('generatedPlans'):`, storedPlansString ? storedPlansString.substring(0, 100) + '...' : storedPlansString);
 
     try {
       if (!storedPlansString) {
@@ -104,8 +103,6 @@ const PlanDetail: React.FC = () => {
         throw new Error("No plans found in storage.");
       }
 
-      // Parse the stored JSON string into an array of Plan objects
-      // Use 'as any' temporarily if stored structure doesn't perfectly match initial Plan interface yet
       const storedPlans: Plan[] = JSON.parse(storedPlansString);
       console.log("PlanDetail: Successfully parsed plans from storage:", storedPlans);
 
@@ -113,14 +110,12 @@ const PlanDetail: React.FC = () => {
 
       if (foundPlan) {
         console.log("PlanDetail: Plan found:", foundPlan);
-        // Ensure the found plan conforms to the updated Plan interface structure
-        // Add default empty structures if parts are missing, to prevent runtime errors
         const validatedPlan: Plan = {
             ...foundPlan,
-            venue: foundPlan.venue || { name: 'N/A' }, // Provide default venue
+            venue: foundPlan.venue || { name: 'N/A' },
             schedule: foundPlan.schedule || [],
-            catering: foundPlan.catering || undefined, // Keep optional if missing
-            guestEngagement: foundPlan.guestEngagement || undefined // Keep optional if missing
+            catering: foundPlan.catering || undefined,
+            guestEngagement: foundPlan.guestEngagement || undefined
         };
         setPlan(validatedPlan);
       } else {
@@ -139,9 +134,7 @@ const PlanDetail: React.FC = () => {
   // --- Modal Control Functions ---
   const handleEditClick = (section: keyof Plan | string) => {
     if (!plan) return;
-
     let currentData: any;
-    // Ensure section is a valid key of the Plan interface before accessing
     if (section in plan) {
          currentData = plan[section as keyof Plan];
     } else {
@@ -159,30 +152,18 @@ const PlanDetail: React.FC = () => {
 
   const handleSaveChanges = (updatedData: any) => {
     if (!plan || !editingSection) return;
-
-    const updatedPlan: Plan = {
-      ...plan,
-      [editingSection]: updatedData,
-    };
-
+    const updatedPlan: Plan = { ...plan, [editingSection]: updatedData };
     setPlan(updatedPlan);
     setError(null);
-
     try {
       const currentStoredPlansString = localStorage.getItem('generatedPlans');
-      if (!currentStoredPlansString) {
-        throw new Error("Failed to retrieve plans from storage for saving.");
-      }
+      if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving.");
       const storedPlans: Plan[] = JSON.parse(currentStoredPlansString);
       const planIndex = storedPlans.findIndex(p => p.id === planId);
-
-      if (planIndex === -1) {
-        throw new Error(`Plan with ID ${planId} not found in storage during save attempt.`);
-      }
+      if (planIndex === -1) throw new Error(`Plan with ID ${planId} not found in storage during save attempt.`);
       storedPlans[planIndex] = updatedPlan;
       localStorage.setItem('generatedPlans', JSON.stringify(storedPlans));
       console.log("PlanDetail: Plan updated successfully in localStorage.");
-
     } catch (err: any) {
       console.error("PlanDetail: Error saving plan changes to localStorage:", err);
       setError("Failed to save changes. Please try again.");
@@ -190,16 +171,43 @@ const PlanDetail: React.FC = () => {
   };
 
   // --- Helper to render list items ---
-  const renderList = (items: string[] | undefined, title: string) => {
-      if (!items || items.length === 0) return null;
-      return (
-          <>
-              <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4>
-              <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-gray-600">
-                  {items.map((item, index) => <li key={index}>{item}</li>)}
-              </ul>
-          </>
-      );
+  // Updated to be safer and log issues
+  const renderList = (items: string[] | string | undefined, title: string) => {
+      // Log input for debugging
+      console.log(`renderList called for: ${title}`, 'with items:', items);
+
+      // Handle null or undefined items
+      if (!items) return null;
+
+      // Check if items is actually an array
+      if (Array.isArray(items)) {
+          // If it's an empty array, return null (or a message)
+          if (items.length === 0) return null;
+          // If it's a non-empty array, map it
+          return (
+              <>
+                  <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4>
+                  <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-gray-600">
+                      {items.map((item, index) => <li key={index}>{item}</li>)}
+                  </ul>
+              </>
+          );
+      } else if (typeof items === 'string' && items.trim() !== '') {
+          // Handle case where 'items' is a non-empty string instead of an array
+          console.warn(`renderList Warning: Expected an array for '${title}', but received a string: "${items}". Rendering as single item.`);
+          return (
+               <>
+                  <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4>
+                  <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-gray-600">
+                      <li>{items}</li>
+                  </ul>
+              </>
+          );
+      } else {
+          // Handle other unexpected types (log and return null)
+          console.warn(`renderList Warning: Expected an array for '${title}', but received type '${typeof items}'. Value:`, items);
+          return null;
+      }
   }
 
 
@@ -241,7 +249,7 @@ const PlanDetail: React.FC = () => {
         <p className="text-gray-600">{plan.date ? new Date(plan.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : 'Not set'}</p>
       </section>
 
-      {/* == Updated Venue Section == */}
+      {/* Venue Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Venue</h2>
@@ -255,8 +263,8 @@ const PlanDetail: React.FC = () => {
                 {plan.venue.contact && <p><span className="font-medium text-gray-800">Contact:</span> {plan.venue.contact}</p>}
                 {plan.venue.costRange && <p><span className="font-medium text-gray-800">Cost Range:</span> {plan.venue.costRange}</p>}
                 {plan.venue.suitability && <p><span className="font-medium text-gray-800">Suitability:</span> {plan.venue.suitability}</p>}
+                {/* Call safer renderList */}
                 {renderList(plan.venue.amenities, 'Amenities')}
-                {/* Optionally display search suggestions */}
                 {/* {renderList(plan.venue.venueSearchSuggestions, 'Search Suggestions')} */}
              </div>
          ) : (
@@ -264,7 +272,7 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* Schedule Section (No change needed for display) */}
+      {/* Schedule Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Schedule</h2>
@@ -284,7 +292,7 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* == Updated Catering Section == */}
+      {/* Catering Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Catering</h2>
@@ -294,17 +302,16 @@ const PlanDetail: React.FC = () => {
              <div className="space-y-2 text-gray-600">
                  {plan.catering.estimatedCost && <p><span className="font-medium text-gray-800">Estimated Cost:</span> {plan.catering.estimatedCost}</p>}
                  {plan.catering.servingStyle && <p><span className="font-medium text-gray-800">Serving Style:</span> {plan.catering.servingStyle}</p>}
-                 {/* Render Menu Items */}
                  {plan.catering.menu && (
                      <div className="mt-3 pt-3 border-t border-gray-200">
                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Menu</h3>
+                         {/* Call safer renderList */}
                          {renderList(plan.catering.menu.appetizers, 'Appetizers')}
                          {renderList(plan.catering.menu.mainCourses, 'Main Courses')}
                          {renderList(plan.catering.menu.desserts, 'Desserts')}
                          {renderList(plan.catering.menu.beverages, 'Beverages')}
                      </div>
                  )}
-                 {/* Optionally display search suggestions */}
                  {/* {renderList(plan.catering.cateringSearchSuggestions, 'Search Suggestions')} */}
              </div>
          ) : (
@@ -312,21 +319,20 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* == Added Guest Engagement Section == */}
+      {/* Guest Engagement Section */}
        <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Guest Engagement</h2>
-           {/* Add Edit button if guestEngagement becomes editable */}
            {/* <button onClick={() => handleEditClick('guestEngagement')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button> */}
          </div>
          {plan.guestEngagement ? (
              <div className="space-y-2 text-gray-600">
+                 {/* Call safer renderList */}
                  {renderList(plan.guestEngagement.icebreakers, 'Icebreakers')}
                  {renderList(plan.guestEngagement.interactiveElements, 'Interactive Elements')}
                  {renderList(plan.guestEngagement.photoOpportunities, 'Photo Opportunities')}
                  {renderList(plan.guestEngagement.partyFavors, 'Party Favors')}
                  {renderList(plan.guestEngagement.techIntegration, 'Tech Integration')}
-                 {/* Optionally display search suggestions */}
                  {/* {renderList(plan.guestEngagement.entertainmentSearchSuggestions, 'Search Suggestions')} */}
              </div>
          ) : (
