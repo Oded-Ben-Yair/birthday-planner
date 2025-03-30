@@ -1,8 +1,7 @@
-// src/pages/Home.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserInputForm from '../components/UserInputForm'; // Ensure path is correct
-import type { UserInput, GeneratePlansResponse } from '../types'; // Import relevant types
+import type { UserInput, GeneratePlansResponse, Plan } from '../types'; // Import relevant types (Assuming Plan is defined in types)
 import { generateBirthdayPlans } from '../utils/api'; // Import the API function
 
 /**
@@ -26,32 +25,43 @@ export default function Home() {
 		setError(null);     // Clear previous errors
 
 		try {
-			console.log("Submitting user input:", data);
+			console.log("Home: Submitting user input:", data);
 			// Call the API function to generate plans
 			const result: GeneratePlansResponse = await generateBirthdayPlans(data);
+            console.log("Home: Received API response:", result); // Log the raw response
 
-			// ** THE FIX IS HERE: Check the structure and save ONLY the plans array **
+			// Check the structure and save ONLY the plans array
+			// Ensure result and result.plans exist and result.plans is an array
 			if (result && Array.isArray(result.plans)) {
-				// Store the generated plans array and the original user input in localStorage
-				localStorage.setItem('birthdayPlans', JSON.stringify(result.plans)); // <-- Save result.plans (the array)
+                // Ensure plans have IDs (add them if missing, though ideally API provides them)
+                const plansWithIds: Plan[] = result.plans.map((plan, index) => ({
+                    ...plan,
+                    // Assign a default ID if missing. Replace with actual ID logic if available from API
+                    id: plan.id || `plan-${index + 1}-${Date.now()}`
+                }));
+
+				// Store the generated plans array (with IDs) and the original user input in localStorage
+				// *** KEY CORRECTION HERE ***
+				localStorage.setItem('generatedPlans', JSON.stringify(plansWithIds)); // <-- Use 'generatedPlans' key
 				localStorage.setItem('userInput', JSON.stringify(data)); // Save the input used
-				console.log("Plans generated and saved to localStorage.");
+				console.log("Home: Plans generated and saved to localStorage with key 'generatedPlans'.");
 
 				// Navigate to the results page upon success
 				navigate('/results');
 			} else {
 				// Handle cases where the API response structure is incorrect
-				console.error("Invalid response structure received from generateBirthdayPlans:", result);
+				console.error("Home: Invalid response structure received from generateBirthdayPlans. Expected { plans: [...] }, got:", result);
 				throw new Error("Received an unexpected response format from the AI.");
 			}
 
 		} catch (err) {
 			// Handle errors during the API call or saving process
-			console.error('Error generating or saving plans:', err);
+			console.error('Home: Error generating or saving plans:', err);
 			// Set a user-friendly error message
 			setError(`Failed to generate birthday plans. ${err instanceof Error ? err.message : 'Please try again.'}`);
             // Clear potentially incomplete data from localStorage on error
-            localStorage.removeItem('birthdayPlans');
+            // *** KEY CORRECTION HERE ***
+            localStorage.removeItem('generatedPlans'); // <-- Use 'generatedPlans' key
             localStorage.removeItem('userInput');
 		} finally {
 			setIsLoading(false); // Hide loading state regardless of success/failure
