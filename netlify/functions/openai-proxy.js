@@ -39,10 +39,9 @@ export const handler = async (event) => {
 
         console.log(`Received action: ${action}`);
         let responseData = null;
-        let responseAnnotations = null;
 
         // ==================================================================
-        // --- Action: Generate Birthday Plans (Using Web Search Tool) ---
+        // --- Action: Generate Birthday Plans (Standard Model + Simplified JSON) ---
         // ==================================================================
         if (action === 'generatePlans') {
             const { userInput } = data;
@@ -50,19 +49,19 @@ export const handler = async (event) => {
                 throw new Error("Missing required user input data, especially location city/country.");
             }
 
-            // --- Define Prompt Instructing AI to Use its Web Search Tool ---
-            const systemPrompt_GeneratePlans = `You are PartyPilot, an AI-powered birthday planning assistant. You have access to a **built-in web search tool**.
+            // --- Define Prompt using RCC Structure for Standard Model ---
+            const systemPrompt_GeneratePlans = `You are PartyPilot, an AI-powered birthday planning assistant.
 
 ### CONSTITUTIONAL PRINCIPLES
 (Keep the 10 principles: INCLUSIVITY, AGE-APPROPRIATENESS, BUDGET RESPECT, SAFETY FIRST, HONESTY, HELPFULNESS, PRIVACY, PROACTIVITY, SPECIFICITY, RESOURCEFULNESS)
-* Apply these principles, especially ensuring age (${userInput.age}) and budget (${userInput.budgetAmount} ${userInput.currency}) appropriateness.
+* Apply these principles, especially ensuring age (${userInput.age}) and budget (${userInput.budgetAmount} ${userInput.currency}) appropriateness. Use your knowledge to provide specific and realistic suggestions for the target location.
 
 ### CHAIN STRUCTURE
 You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
 ### REACT PROCESS (Internal Guidance)
-1.  **THINK:** Analyze user input. Identify where **web search is needed** for specific, local, up-to-date information (venues, caterers, activities, costs) in **${userInput.location.city}, ${userInput.location.country}**.
-2.  **ACT (using Web Search):** Generate 3 distinct plans ('DIY/Budget', 'Premium/Convenience', 'Unique/Adventure') using the user input AND **leveraging your web search tool** to find real options. Incorporate search findings directly into the plan details.
+1.  **THINK:** Analyze user input. Identify key constraints and preferences. Use your internal knowledge to brainstorm specific, realistic options for **${userInput.location.city}, ${userInput.location.country}**.
+2.  **ACT:** Generate 3 distinct plans ('DIY/Budget', 'Premium/Convenience', 'Unique/Adventure') incorporating the most suitable options based on your knowledge and the user input.
 3.  **OBSERVE:** (Handled by response generation).
 
 ### USER INPUT SUMMARY:
@@ -77,84 +76,68 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
 ### TASK & INSTRUCTIONS:
 1.  **Generate 3 Distinct Plans:** Create 'DIY/Budget', 'Premium/Convenience', 'Unique/Adventure' plans based on the **USER INPUT SUMMARY**.
-2.  **USE WEB SEARCH TOOL (CRITICAL):** You **MUST use your web search tool** to find specific, real, current information for venues, caterers, activities, and typical costs in **"${userInput.location.city}, ${userInput.location.country}"** that fit the user's requirements (theme, budget, age, etc.). Incorporate these findings (real names, estimated costs based on search) into the plan details. Do NOT invent details if search can provide them. Clearly label cost estimates ("Estimate: ...").
+2.  **SPECIFICITY & RESOURCEFULNESS (Use Knowledge):** Use your knowledge base to provide specific, realistic, and relevant suggestions appropriate for **"${userInput.location.city}, ${userInput.location.country}"**. Prioritize suggestions that fit the theme, budget, age, and other preferences. Use plausible information based on your training data for the location. Clearly label cost estimates ("Estimate: ...").
 3.  **Output Format:** Respond ONLY with a single, valid JSON object: \`{ "plans": [ plan1, plan2, plan3 ] }\`. NO extra text. Double quotes. No trailing commas.
-4.  **Required JSON Structure (Per Plan):** Each plan object MUST follow this structure EXACTLY (fill details based on user input and **web search findings**):
+4.  **Required JSON Structure (Per Plan):** Each plan object MUST follow this **SIMPLIFIED** structure EXACTLY:
     \`\`\`json
     {
       "id": "plan-1", // Assign plan-1, plan-2, plan-3
       "name": "Specific Plan Name Based on Theme/Venue",
-      "description": "Concise description for age ${userInput.age} in ${userInput.location.city}, reflecting search findings.",
+      "description": "Concise description for age ${userInput.age} in ${userInput.location.city}.",
       "profile": "DIY/Budget", // Or "Premium/Convenience" or "Unique/Adventure"
-      "venue": { // BASE THIS ON WEB SEARCH RESULTS
-        "name": "Real Venue Name from Search",
-        "description": "Venue Description (from search if available)",
-        "costRange": "Estimate based on search: X-Y ${userInput.currency} or 'Free'",
-        "amenities": ["Amenity 1 (from search)", "..."],
-        "suitability": "Why this venue (found via search) is suitable.",
-        "venueSearchSuggestions": ["search term for chosen venue", "alternative local venue search"]
+      "venue": { // SIMPLIFIED
+        "name": "Plausible Venue Name for Location",
+        "costRange": "Estimate: X-Y ${userInput.currency} or 'Free'"
       },
-      "schedule": [ // Tailor activities to theme, age, venue (search can inform activities too)
-        { "time": "Start - End", "activity": "Activity Name", "description": "Optional description." }
+      "schedule": [ // SIMPLIFIED - Just one key activity
+        { "time": "Main Time Slot", "activity": "Primary Activity Suggestion" }
       ],
-      "catering": { // BASE THIS ON WEB SEARCH RESULTS for local options/costs
-        "estimatedCost": "Estimate based on search: Approx. Z ${userInput.currency}",
-        "servingStyle": "Style suitable for venue/theme (informed by search)",
-        "menu": { // Menu reflecting user prefs and local options (search can inform)
-          "appetizers": ["Appetizer 1"],
-          "mainCourses": ["Main 1"],
-          "desserts": "Dessert description (themed)", // String
-          "beverages": ["Beverage 1"]
-        },
-        "cateringSearchSuggestions": ["local caterer search based on findings", "alternative catering search ${userInput.location.city}"]
+      "catering": { // SIMPLIFIED
+        "estimatedCost": "Estimate: Approx. Z ${userInput.currency}",
+        "servingStyle": "Brief Style Suggestion (e.g., BBQ, Pizza, Tapas)"
       },
-      "guestEngagement": { // Tailor to theme, age, venue
-        "icebreakers": ["Icebreaker idea 1"],
-        "interactiveElements": ["Interactive element 1"],
-        "photoOpportunities": ["Photo op idea 1"],
-        "partyFavors": ["Party favor idea 1"],
-        "techIntegration": [],
-        "entertainmentSearchSuggestions": ["local entertainment search ${userInput.location.city}"]
+      "guestEngagement": { // SIMPLIFIED - Just one key idea
+        "interactiveElements": ["One Key Interactive Element Suggestion"]
       }
     }
     \`\`\`
-5.  **Personalization & Adherence:** Ensure all plan elements reflect the **USER INPUT SUMMARY**. Use the **web search results** to provide specific, accurate, and relevant details for **${userInput.location.city}, ${userInput.location.country}**. Adhere strictly to budget constraints for each profile.`;
+    **(Note: Details like amenities, full menus, suitability, search suggestions, etc., are temporarily omitted to reduce output size).**
+5.  **Personalization & Adherence:** Ensure the simplified plan elements reflect the **USER INPUT SUMMARY**. Adhere strictly to budget constraints for each profile.`;
 
-            const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans according to ALL instructions in the system prompt, using the provided user input and your web search tool for local details. Output ONLY the valid JSON object containing the "plans" array.`;
+            const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans according to ALL instructions in the system prompt, based *only* on the user input summary provided in the system prompt's PREVIOUS CONTEXT section. Use your knowledge to provide specific details relevant to the location. Output ONLY the valid JSON object containing the 3 plans in the **SIMPLIFIED** structure specified.`;
 
-            console.log(`Calling OpenAI model '${'gpt-4o-search-preview'}' for generatePlans (Web Search Enabled)...`);
+            console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Standard Model, Simplified JSON Mode)...`);
             const completion = await openai.chat.completions.create({
-                model: 'gpt-4o-search-preview',
+                model: 'gpt-4o',
                 messages: [
                     { role: 'system', content: systemPrompt_GeneratePlans },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                // ** max_tokens ADDED to allow longer response **
-                max_tokens: 4000, // Set a higher limit (max output is 4096 for gpt-4o)
-                web_search_options: {}, // Enable web search
-                // response_format removed in previous step
-                // temperature removed in previous step
+                max_tokens: 3000, // Reduced slightly as output is simpler
+                temperature: 0.6,
+                response_format: { type: "json_object" },
             });
 
             const message = completion.choices[0]?.message;
             const finalContent = message?.content;
-            responseAnnotations = message?.annotations; // Store annotations if present
 
-            if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Web Search)');
+            if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Standard Model)');
 
-            // Attempt to parse, relying on prompt instructions and parser robustness
             responseData = extractAndParseJson(finalContent);
 
-            // Validation
-            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p => p && p.id && p.name && p.venue && typeof p.venue === 'object' && p.schedule && Array.isArray(p.schedule) && p.catering && typeof p.catering === 'object' && p.guestEngagement && typeof p.guestEngagement === 'object')) {
-                console.error("Final parsed data failed validation (generatePlans - Web Search). Parsed:", responseData);
-                console.error("Raw content received that failed validation:", finalContent); // Log raw content on validation failure
-                throw new Error("AI response format error or missing required plan fields/objects after parsing.");
+            // Validation - Check only for the simplified structure
+            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p =>
+                p && p.id && p.name && p.description && p.profile &&
+                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange && // Simplified venue check
+                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 && // Simplified schedule check
+                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle && // Simplified catering check
+                p.guestEngagement && typeof p.guestEngagement === 'object' && p.guestEngagement.interactiveElements // Simplified engagement check
+            )) {
+                console.error("Final parsed data failed validation (generatePlans - Simplified JSON). Parsed:", responseData);
+                console.error("Raw content received that failed validation:", finalContent);
+                throw new Error("AI response format error or missing required simplified plan fields after parsing.");
             }
-            console.log("Successfully generated and parsed plans (using Web Search Tool).");
-            if (responseAnnotations) {
-                console.log("Response included annotations (citations):", responseAnnotations);
-            }
+            console.log("Successfully generated and parsed plans (using Standard Model + Simplified JSON).");
 
         // ==================================================================
         // --- Other Actions (generateInvitation, optimizeBudget) ---
@@ -183,7 +166,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
             const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
             const messagesForOptimize = [ { role: 'system', content: systemPrompt_OptimizeBudget }, { role: 'user', content: userPrompt_OptimizeBudget } ];
             console.log("Calling OpenAI (gpt-4o) for optimizeBudget...");
-            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, max_tokens: 4000 }); // Added max_tokens here too for safety
+            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, max_tokens: 4000 });
             const content = completion.choices[0]?.message?.content;
             if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
             const parsedResponse = extractAndParseJson(content);
