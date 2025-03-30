@@ -48,47 +48,71 @@ const PlanDetail: React.FC = () => {
 
   // --- Load Initial Plan Data ---
   useEffect(() => {
+    // Reset states on ID change or mount
     setIsLoading(true);
     setError(null);
     setPlan(null);
-    setEditingSection(null); // Reset modal state on load/ID change
+    setEditingSection(null);
     setDataToEdit(null);
 
+    console.log(`PlanDetail: useEffect running for planId: ${planId}`); // Log effect start
+
     if (!planId) {
-      setError("No Plan ID provided in the URL.");
-      setIsLoading(false);
-      return;
+        console.error("PlanDetail: No Plan ID provided in the URL.");
+        setError("No Plan ID provided in the URL.");
+        setIsLoading(false);
+        return; // Exit if no planId
     }
 
+    // *** DEBUGGING LOG ADDED HERE ***
+    const storedPlansString = localStorage.getItem('generatedPlans');
+    console.log(`PlanDetail: Value from localStorage.getItem('generatedPlans'):`, storedPlansString); // Log the raw value
+
     try {
-      const storedPlansString = localStorage.getItem('generatedPlans');
+      // Retrieve the array of plans from localStorage
+      // const storedPlansString = localStorage.getItem('generatedPlans'); // Moved log above try block
+
+      // Check if the string is null, undefined, or empty *before* trying to parse
       if (!storedPlansString) {
-        throw new Error("No plans found in storage.");
+        console.error("PlanDetail: No valid plan data string found in localStorage."); // More specific log
+        throw new Error("No plans found in storage."); // This is the error you're seeing
       }
+
+      // Now attempt to parse
       const storedPlans: Plan[] = JSON.parse(storedPlansString);
+      console.log("PlanDetail: Successfully parsed plans from storage:", storedPlans); // Log parsed data
+
+      // Find the specific plan by its ID
       const foundPlan = storedPlans.find(p => p.id === planId);
 
       if (foundPlan) {
-        setPlan(foundPlan);
+        console.log("PlanDetail: Plan found:", foundPlan); // Debugging log
+        setPlan(foundPlan); // Set the found plan into state
       } else {
+        console.warn(`PlanDetail: Plan with ID ${planId} not found within the stored plans array.`); // More specific log
         throw new Error(`Plan with ID ${planId} not found.`);
       }
     } catch (err: any) {
-      console.error("Error loading plan:", err);
+      // Catch errors from JSON.parse or the explicit throws above
+      console.error("PlanDetail: Error loading plan:", err); // Log the actual error
+      // Set error state to display feedback to the user
       setError(err.message || "An error occurred while loading the plan.");
     } finally {
+      // Set loading to false regardless of success or failure
       setIsLoading(false);
+      console.log("PlanDetail: useEffect finished."); // Log effect end
     }
+
+    // The dependency array [planId] ensures this effect runs again if the planId changes
   }, [planId]);
 
   // --- Modal Control Functions ---
 
   // Opens the modal for the specified section
   const handleEditClick = (section: keyof Plan | string) => {
-    if (!plan) return; // Should not happen if plan is loaded
+    if (!plan) return;
 
     let currentData: any;
-    // Determine the data to pass based on the section key
     switch (section) {
         case 'name':
         case 'description':
@@ -96,15 +120,12 @@ const PlanDetail: React.FC = () => {
         case 'venue':
         case 'schedule':
         case 'catering':
-            currentData = plan[section as keyof Plan]; // Access plan property directly
+            currentData = plan[section as keyof Plan];
             break;
-        // Add cases for other top-level editable properties if needed
         default:
             console.warn(`Attempting to edit unhandled section: ${section}`);
-            return; // Don't open modal for unhandled sections
+            return;
     }
-
-    console.log(`Editing section: ${section}, Data:`, currentData); // Debug log
     setDataToEdit(currentData);
     setEditingSection(section);
   };
@@ -117,66 +138,52 @@ const PlanDetail: React.FC = () => {
 
   // Saves changes from the modal
   const handleSaveChanges = (updatedData: any) => {
-    if (!plan || !editingSection) return; // Should not happen if modal was open
+    if (!plan || !editingSection) return;
 
-    console.log(`Saving changes for section: ${editingSection}, Data:`, updatedData); // Debug log
-
-    // Create the updated plan object
     const updatedPlan: Plan = {
       ...plan,
-      [editingSection]: updatedData, // Update the specific section
+      [editingSection]: updatedData,
     };
 
-    // 1. Update component state
-    setPlan(updatedPlan);
+    setPlan(updatedPlan); // Update state first (optimistic update)
+    setError(null); // Clear previous save errors
 
-    // 2. Update localStorage
     try {
-      const storedPlansString = localStorage.getItem('generatedPlans');
-      if (!storedPlansString) {
+      const currentStoredPlansString = localStorage.getItem('generatedPlans'); // Re-fetch fresh data
+      if (!currentStoredPlansString) {
         throw new Error("Failed to retrieve plans from storage for saving.");
       }
-      const storedPlans: Plan[] = JSON.parse(storedPlansString);
-
-      // Find the index of the plan to update
+      const storedPlans: Plan[] = JSON.parse(currentStoredPlansString);
       const planIndex = storedPlans.findIndex(p => p.id === planId);
 
       if (planIndex === -1) {
-        throw new Error(`Plan with ID ${planId} not found in storage during save.`);
+        // This could happen if storage was cleared between load and save
+        throw new Error(`Plan with ID ${planId} not found in storage during save attempt.`);
       }
-
-      // Replace the old plan with the updated one
       storedPlans[planIndex] = updatedPlan;
-
-      // Save the updated array back to localStorage
       localStorage.setItem('generatedPlans', JSON.stringify(storedPlans));
-      console.log("Plan updated successfully in localStorage."); // Debug log
+      console.log("PlanDetail: Plan updated successfully in localStorage.");
 
     } catch (err: any) {
-      console.error("Error saving plan changes to localStorage:", err);
-      // Optionally: Display an error message to the user
+      console.error("PlanDetail: Error saving plan changes to localStorage:", err);
       setError("Failed to save changes. Please try again.");
-      // Optionally: Revert state change if save fails?
-      // setPlan(plan); // Revert to original plan state
+      // Consider reverting the optimistic update if save fails
+      // setPlan(plan);
     }
-
-    // Close the modal automatically (handled by modal's handleSave)
-    // handleCloseModal(); // No need to call here, modal calls onClose which triggers this
   };
 
 
   // --- Render Logic ---
   if (isLoading) return <div className="p-6 text-center">Loading plan details...</div>;
-  if (error && !plan) return <div className="p-6 text-center text-red-600">Error: {error}</div>; // Show load error only if plan isn't loaded
-  if (!plan) return <div className="p-6 text-center">Plan not found.</div>;
-
-  // Display potential save error
-  const displayError = error && plan ? <div className="p-4 mb-4 text-center text-red-600 bg-red-100 border border-red-300 rounded-md">{error}</div> : null;
+  // Keep showing error even if plan data exists (e.g., for save errors)
+  const displayError = error ? <div className="p-4 mb-4 text-center text-red-600 bg-red-100 border border-red-300 rounded-md">{error}</div> : null;
+  if (!plan && !isLoading) return <div className="p-6 text-center text-red-600">Error: {error || 'Plan not found.'}</div>; // Show error or 'not found' if plan is null after loading
+  if (!plan) return null; // Should not be reached if logic above is correct, but prevents errors accessing plan properties
 
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-4xl font-inter">
-      {displayError} {/* Display save errors here */}
+      {displayError} {/* Display load or save errors here */}
 
       {/* Plan Name */}
       <div className="flex justify-between items-center mb-6 pb-2 border-b border-gray-300">
@@ -190,7 +197,7 @@ const PlanDetail: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-700">Description</h2>
           <button onClick={() => handleEditClick('description')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
         </div>
-        <p className="text-gray-600 whitespace-pre-wrap">{plan.description}</p> {/* Use pre-wrap to respect newlines */}
+        <p className="text-gray-600 whitespace-pre-wrap">{plan.description}</p>
       </section>
 
       {/* Date Section */}
@@ -199,7 +206,7 @@ const PlanDetail: React.FC = () => {
            <h2 className="text-xl font-semibold text-gray-700">Date</h2>
            <button onClick={() => handleEditClick('date')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
          </div>
-        <p className="text-gray-600">{plan.date ? new Date(plan.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : 'Not set'}</p> {/* Better date formatting, handle potential invalid date */}
+        <p className="text-gray-600">{plan.date ? new Date(plan.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : 'Not set'}</p>
       </section>
 
       {/* Venue Section */}
@@ -253,10 +260,9 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* --- Render Edit Modal --- */}
-      {/* The modal is rendered conditionally based on editingSection state */}
+      {/* Render Edit Modal */}
       <EditPlanSectionModal
-        isOpen={!!editingSection} // Boolean cast: true if editingSection is not null/empty
+        isOpen={!!editingSection}
         onClose={handleCloseModal}
         section={editingSection}
         currentData={dataToEdit}
