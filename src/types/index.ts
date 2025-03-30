@@ -20,6 +20,7 @@ export interface UserInput {
 	// Location details
 	location: {
 		city: string;
+		country: string; // ** ADDED: Country field for better search context **
 		setting: 'indoor' | 'outdoor' | 'both';
 	};
 
@@ -79,8 +80,8 @@ export interface GuestEngagement {
 	photoOpportunities: string[];
 	partyFavors: string[];
 	techIntegration?: string[]; // Optional array for tech ideas
-    // Added: Example search terms for finding relevant vendors (e.g., entertainers)
-    entertainmentSearchSuggestions?: string[]; // Optional array of search strings
+	// Added: Example search terms for finding relevant vendors (e.g., entertainers)
+	entertainmentSearchSuggestions?: string[]; // Optional array of search strings
 }
 
 // Represents a complete birthday plan
@@ -94,6 +95,8 @@ export interface BirthdayPlan {
 	schedule: ScheduleItem[]; // Array of schedule items
 	catering: Catering;
 	guestEngagement: GuestEngagement;
+    // Added: Optional field for optimization summary
+    optimizationSummary?: string;
 }
 
 // --- API Payloads / Responses ---
@@ -106,17 +109,17 @@ export interface GeneratePlansPayload {
 }
 // Response expected FROM the backend AFTER generating plans
 export interface GeneratePlansResponse {
-    plans: BirthdayPlan[]; // Expects an array of plans
+	plans: BirthdayPlan[]; // Expects an array of plans
 }
 
 
 // Payload sent TO the backend FOR generating invitations
 export interface GenerateInvitationPayload {
-    action: 'generateInvitation';
-    plan: BirthdayPlan; // Send the selected (potentially edited) plan
-    template: 'classic' | 'playful' | 'themed' | 'minimalist' | string;
-    date: string; // Event date
-    time: string; // Event time
+	action: 'generateInvitation';
+	plan: BirthdayPlan; // Send the selected (potentially edited) plan
+	template: 'classic' | 'playful' | 'themed' | 'minimalist' | string;
+	date: string; // Event date
+	time: string; // Event time
 }
 // Response expected FROM the backend AFTER generating invitation components
 export interface SmartInvitation {
@@ -128,39 +131,38 @@ export interface SmartInvitation {
 
 // Structure defining budget priorities (used in payload)
 export interface BudgetPriorities {
-    venue: number; // Scale 1-5 (1=low, 5=high)
-    food: number;
-    activities: number;
-    decorations: number;
-    partyFavors: number;
+	venue: number; // Scale 1-5 (1=low, 5=high)
+	food: number;
+	activities: number;
+	decorations: number;
+	partyFavors: number;
 }
 // Payload sent TO the backend FOR optimizing budget
 export interface OptimizeBudgetPayload {
-    action: 'optimizeBudget';
-    plan: BirthdayPlan; // Send the selected (potentially edited) plan
-    priorities: BudgetPriorities;
-    // Added: Send the specific budget context for better optimization
-    numericBudget: number;
-    currency: string;
+	action: 'optimizeBudget';
+	plan: BirthdayPlan; // Send the selected (potentially edited) plan
+	priorities: BudgetPriorities;
+	// Added: Send the specific budget context for better optimization
+	numericBudget: number;
+	currency: string;
 }
 // Response expected FROM the backend AFTER optimizing budget
 export interface OptimizeBudgetResponse {
-    optimizedPlan: BirthdayPlan; // Expects the single optimized plan object
+	optimizedPlan: BirthdayPlan; // Expects the single optimized plan object
 }
 
 // --- Utility Type Guard ---
 // Helper function to perform a basic check if an object looks like a BirthdayPlan
 // Useful after parsing data from unknown sources (like localStorage or API)
 export function isValidBirthdayPlan(obj: any): obj is BirthdayPlan {
-    // Basic checks - expand if more rigorous validation is needed
-    return obj &&
-           typeof obj.id === 'string' &&
-           typeof obj.name === 'string' &&
-           typeof obj.description === 'string' &&
-           typeof obj.venue === 'object' && // Check if venue exists
-           Array.isArray(obj.schedule) && // Check if schedule is an array
-           typeof obj.catering === 'object' && // Check if catering exists
-           typeof obj.guestEngagement === 'object'; // Check if guestEngagement exists
+	// Basic checks - expand if more rigorous validation is needed
+	return obj &&
+		   typeof obj.id === 'string' &&
+		   typeof obj.name === 'string' &&
+		   typeof obj.description === 'string' &&
+		   typeof obj.venue === 'object' && // Check if venue exists
+		   Array.isArray(obj.schedule) && // Check if schedule is an array
+		   typeof obj.catering === 'object' && // Check if catering exists
+		   typeof obj.guestEngagement === 'object'; // Check if guestEngagement exists
 }
-
 
