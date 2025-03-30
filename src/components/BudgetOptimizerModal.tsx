@@ -23,7 +23,7 @@ const BudgetOptimizerModal: React.FC<BudgetOptimizerModalProps> = ({
     onClose,
     currentPlan,
     userInput,
-    onPlanUpdate,
+    onPlanUpdate, // This will be connected to handleBudgetOptimized in PlanDetail
 }) => {
 
     // Don't render if not open, or if essential data is missing

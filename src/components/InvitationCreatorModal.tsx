@@ -53,6 +53,7 @@ const InvitationCreatorModal: React.FC<InvitationCreatorModalProps> = ({
                 </div>
 
                  {/* Modal Footer - Added a close button */}
+                 {/* The SmartInvitation component has its own internal buttons for Generate/Save */}
                  <div className="flex justify-end space-x-3 p-4 border-t border-gray-200 flex-shrink-0 bg-gray-50 rounded-b-lg">
                      <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out">Close</button>
                  </div>
@@ -62,3 +63,4 @@ const InvitationCreatorModal: React.FC<InvitationCreatorModalProps> = ({
 };
 
 export default InvitationCreatorModal;
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect import
 // Import necessary types, assuming SmartInvitationType is defined in types/index.ts
 import type { BirthdayPlan, SmartInvitation as SmartInvitationType } from '../types';
 // Import the API utility function (ensure path is correct)
@@ -7,9 +7,8 @@ import { generateSmartInvitation } from '../utils/api';
 // Props for the component - primarily needs the selected plan
 interface SmartInvitationProps {
     selectedPlan: BirthdayPlan;
-    // Note: This component handles its own state and API call,
-    // it doesn't necessarily need onClose or isOpen from a parent modal,
-    // but it will be *rendered* by InvitationCreatorModal which handles open/close.
+    // Note: This component handles its own state and API call.
+    // It's rendered by InvitationCreatorModal which handles open/close.
 }
 
 /**
@@ -19,13 +18,42 @@ interface SmartInvitationProps {
 export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) {
     // State for user selections
     const [template, setTemplate] = useState<'classic' | 'playful' | 'themed' | 'minimalist'>('themed');
-    const [date, setDate] = useState(""); // Consider pre-filling from selectedPlan.date if available?
-    const [time, setTime] = useState("");
+    // Pre-fill date from plan if available, otherwise empty string
+    const [date, setDate] = useState<string>("");
+    const [time, setTime] = useState<string>(""); // Time needs to be input by user
 
     // State for API results and status
     const [invitation, setInvitation] = useState<SmartInvitationType | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Effect to pre-fill date when component mounts or selectedPlan changes
+    useEffect(() => {
+        if (selectedPlan?.date) {
+            try {
+                // Format the date from the plan to YYYY-MM-DD for the input
+                const planDate = new Date(selectedPlan.date);
+                 // Check if the date is valid before formatting
+                if (!isNaN(planDate.getTime())) {
+                    const formattedDate = planDate.toISOString().split('T')[0];
+                    setDate(formattedDate);
+                } else {
+                    console.warn("Plan date is invalid:", selectedPlan.date);
+                    setDate(""); // Reset if invalid
+                }
+            } catch (e) {
+                console.error("Error parsing plan date:", e);
+                setDate(""); // Reset on error
+            }
+        } else {
+            setDate(""); // Reset if no date in plan
+        }
+        // Reset time when plan changes
+        setTime("");
+        // Clear previous results when plan changes
+        setInvitation(null);
+        setError(null);
+    }, [selectedPlan]); // Dependency on selectedPlan
 
     /**
      * Handles the click event for the "Generate Invitation" button.
@@ -34,7 +62,7 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
     const handleGenerateInvitation = async () => {
         // Basic validation for date and time
         if (!date || !time) {
-            setError('Please select a date and time for the event.');
+            setError('Please select a valid date and time for the event.');
             return;
         }
         setIsLoading(true);
@@ -65,8 +93,8 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
 
     // --- Render Component UI ---
     return (
-        // Use a fragment or a div wrapper if needed within the modal body
-        <>
+        // Using a div wrapper
+        <div className="smart-invitation-container">
             {/* Section for selecting options (only shown if invitation hasn't been generated yet) */}
             {!invitation ? (
                 <div className="space-y-6">
@@ -194,7 +222,7 @@ export default function SmartInvitation({ selectedPlan }: SmartInvitationProps) 
                     </div>
                 </div>
             )}
-        </>
+        </div> // Changed fragment to div wrapper
     );
 }
 
