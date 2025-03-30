@@ -34,7 +34,8 @@ const sanitizePlans = (plans: BirthdayPlan[]): BirthdayPlan[] => {
 				venue: { name: '', description: '', costRange: '', amenities: [], suitability: '', venueSearchSuggestions: [] },
 				schedule: [],
 				catering: { estimatedCost: '', servingStyle: '', menu: { appetizers: [], mainCourses: [], desserts: '', beverages: [] }, cateringSearchSuggestions: [] },
-				guestEngagement: { icebreakers: [], interactiveElements: [], photoOpportunities: [], partyFavors: [], techIntegration: [], entertainmentSearchSuggestions: [] }
+				guestEngagement: { icebreakers: [], interactiveElements: [], photoOpportunities: [], partyFavors: [], techIntegration: [], entertainmentSearchSuggestions: [] },
+                optimizationSummary: undefined,
 			};
 		}
 
@@ -105,7 +106,7 @@ export default function Results() {
 		setError(null);
 
 		const storedPlans = localStorage.getItem('birthdayPlans');
-		const storedUserInput = localStorage.getItem('userInput'); // Load original user input
+		const storedUserInput = localStorage.getItem('userInput');
 
 		if (!storedPlans || !storedUserInput) {
 			console.error('Required data (plans or userInput) not found in localStorage. Redirecting.');
@@ -155,22 +156,19 @@ export default function Results() {
 	const selectedPlan = plans.find(plan => plan.id === selectedPlanId);
 
 	/**
-	 * Handler to update the plans state when a plan is modified (e.g., by BudgetOptimizer or inline editing).
+	 * Handler to update the plans state when a plan is modified.
 	 * Also updates localStorage.
-	 * @param updatedPlan - The modified BirthdayPlan object.
 	 */
 	const handlePlanUpdate = (updatedPlan: BirthdayPlan) => {
 		if (!updatedPlan?.id) {
 			 console.error("handlePlanUpdate received invalid plan:", updatedPlan);
 			 return;
 		}
-		// Create the new array of plans with the updated one
 		const updatedPlans = plans.map(plan =>
 			plan.id === updatedPlan.id ? updatedPlan : plan
 		);
-		setPlans(updatedPlans); // Update component state
+		setPlans(updatedPlans);
 
-		// Persist changes to localStorage
 		try {
 			localStorage.setItem('birthdayPlans', JSON.stringify(updatedPlans));
 			console.log(`Plan ${updatedPlan.id} updated and saved to localStorage.`);
@@ -182,14 +180,38 @@ export default function Results() {
 
 	// --- Render Logic ---
 
-	// Loading State UI
+	// ** FIXED Loading State UI **
 	if (isLoading) {
-		return ( /* ... loading UI ... */ );
+		return (
+			<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+				<div className="text-center">
+					{/* Simple spinner using Tailwind classes */}
+					<div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+					<p className="text-lg text-gray-600">Loading plans...</p>
+				</div>
+			</div>
+		);
 	}
 
-	// Error State UI
+	// ** FIXED Error State UI **
 	if (error) {
-		 return ( /* ... error UI ... */ );
+		 return (
+			<div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+				<div className="text-center bg-white p-8 rounded-lg shadow-xl max-w-md border border-red-200">
+					<h2 className="text-2xl font-semibold text-red-600 mb-4">Loading Error</h2>
+					<p className="text-gray-700 mb-6">{error}</p>
+					<button
+						onClick={() => {
+                            setError(null); // Clear error before navigating
+                            navigate('/');
+                        }}
+						className="px-6 py-2 bg-red-500 text-white font-medium rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 transition duration-150 ease-in-out"
+					>
+						Start Over
+					</button>
+				</div>
+			</div>
+		);
 	}
 
 	// Main Content UI (Loaded, No Error)
@@ -197,7 +219,6 @@ export default function Results() {
 		<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
 			<div className="max-w-7xl mx-auto">
 				<header className="text-center mb-10">
-                    {/* ... header content ... */}
                     <h1 className="text-4xl font-bold text-gray-900 tracking-tight sm:text-5xl">Your Birthday Plans</h1>
 					{userInput?.birthdayPersonName && userInput?.theme && (
 						<p className="mt-4 text-xl text-gray-600">
@@ -207,7 +228,6 @@ export default function Results() {
 				</header>
 
 				{plans.length === 0 ? (
-					 /* ... no plans UI ... */
                      <div className="text-center bg-white p-8 rounded-lg shadow-md max-w-md mx-auto border border-gray-200">
 						<h2 className="text-xl font-semibold text-gray-700 mb-4">No Plans Available</h2>
 						<p className="text-gray-600 mb-6"> No plans were found or generated successfully. Please go back and try again. </p>
@@ -218,7 +238,6 @@ export default function Results() {
 					<>
 						{/* Tabs Navigation */}
 						<div className="mb-8 border-b border-gray-300">
-                            {/* ... tab buttons ... */}
                             <div className="flex flex-wrap -mb-px space-x-1 sm:space-x-4" aria-label="Tabs">
 								<button onClick={() => setActiveTab('plans')} className={`px-3 py-3 sm:px-4 font-semibold text-sm rounded-t-md focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-opacity-50 transition-colors duration-150 ${ activeTab === 'plans' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-400' }`} > Birthday Plans ({plans.length}) </button>
 								<button onClick={() => setActiveTab('invitation')} disabled={!selectedPlan} className={`px-3 py-3 sm:px-4 font-semibold text-sm rounded-t-md focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-opacity-50 transition-colors duration-150 ${ activeTab === 'invitation' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-400' } ${!selectedPlan ? 'opacity-50 cursor-not-allowed' : ''}`} > Smart Invitation </button>
@@ -237,7 +256,7 @@ export default function Results() {
 											plan={plan}
 											isSelected={plan.id === selectedPlanId}
 											onSelect={() => plan.id && setSelectedPlanId(plan.id)}
-                                            // ** ADDED: Pass handlePlanUpdate to PlanCard **
+                                            // ** Pass handlePlanUpdate to PlanCard for editing **
                                             onPlanUpdate={handlePlanUpdate}
 										/>
 									))}
@@ -246,7 +265,6 @@ export default function Results() {
 
 							{/* Invitation Tab Content */}
 							{activeTab === 'invitation' && selectedPlan && (
-                                // ... invitation content ...
                                 <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8 max-w-4xl mx-auto border border-gray-200">
 									<SmartInvitation selectedPlan={selectedPlan} />
 								</div>
@@ -254,7 +272,6 @@ export default function Results() {
 
 							{/* Budget Tab Content */}
 							{activeTab === 'budget' && selectedPlan && userInput && (
-                                // ... budget optimizer content ...
                                  <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8 max-w-4xl mx-auto border border-gray-200">
 									<BudgetOptimizer
 										selectedPlan={selectedPlan}
@@ -268,29 +285,24 @@ export default function Results() {
 
 						{/* Start Over Button */}
 						<div className="mt-16 text-center">
-                            {/* ... start over button ... */}
                             <button onClick={() => navigate('/')} className="px-8 py-3 bg-white text-gray-700 font-semibold rounded-md border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-50 transition duration-150 ease-in-out" > Start Over </button>
 						</div>
 					</>
 				)}
 			</div>
-            {/* Minimal Loading/Error UI included for completeness */}
-            {isLoading && (
-                 <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex items-center justify-center z-50">
-                    <p className="text-white text-lg animate-pulse">Loading...</p>
-                 </div>
-            )}
-             {error && !isLoading && ( // Show error only if not loading
-                 <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-lg z-50" role="alert">
-                    <strong className="font-bold">Error!</strong>
-                    <span className="block sm:inline ml-2">{error}</span>
-                    <button onClick={() => setError(null)} className="absolute top-0 bottom-0 right-0 px-4 py-3 text-red-500 hover:text-red-700">
-                        <span className="text-2xl">&times;</span>
+            {/* Error Snackbar/Toast (Only shown if error state is set and not loading) */}
+             {error && !isLoading && (
+                 <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center" role="alert">
+                    <div>
+                        <strong className="font-bold block">Error!</strong>
+                        <span className="block sm:inline">{error}</span>
+                    </div>
+                    <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700 text-2xl font-bold leading-none" aria-label="Close">
+                        <span>&times;</span>
                     </button>
                  </div>
             )}
 		</div>
 	);
 }
-
 
