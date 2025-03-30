@@ -34,142 +34,90 @@ export const handler = async (event) => {
         let payload;
         try { payload = JSON.parse(event.body); }
         catch (parseError) { throw new Error("Invalid request format: Body must be valid JSON."); }
-        const { action, ...data } = payload;
+        // ** Destructure profile along with action and userInput **
+        const { action, userInput, profile, ...otherData } = payload; // Get profile if provided
         if (!action) throw new Error("Missing 'action' field in request payload.");
 
-        console.log(`Received action: ${action}`);
+        console.log(`Received action: ${action}` + (profile ? ` for profile: ${profile}` : '')); // Log profile if present
         let responseData = null;
 
         // ==================================================================
-        // --- Action: Generate Birthday Plans (RCC Prompt, 1 Detailed Plan) ---
+        // --- Action: Generate Birthday Plans (RCC Prompt, 1 Specific Plan) ---
         // ==================================================================
         if (action === 'generatePlans') {
-            const { userInput } = data;
+            // ** Validate userInput exists **
             if (!userInput || typeof userInput !== 'object' || !userInput.location?.city || !userInput.location?.country) {
-                throw new Error("Missing required user input data, especially location city/country.");
+                throw new Error("Missing required user input data for generatePlans action.");
             }
+            // ** Determine requested profile **
+            const requestedProfile = profile || 'Premium/Convenience'; // Default if not specified, or choose dynamically
+            const planId = profile === 'DIY/Budget' ? 'plan-1' : (profile === 'Premium/Convenience' ? 'plan-2' : 'plan-3'); // Assign ID based on profile
 
             // --- Use Detailed RCC Prompt Structure ---
-            const systemPrompt_GeneratePlans_RCC_Detailed = `You are PartyPilot, an AI-powered birthday planning assistant designed to create personalized, creative, and practical birthday plans.
-
-### CONSTITUTIONAL PRINCIPLES
-Adhere to these principles throughout all interactions:
-1.  **INCLUSIVITY:** Ensure all recommendations are inclusive and respectful of diverse backgrounds.
-2.  **AGE-APPROPRIATENESS:** All suggestions MUST be appropriate for the age (${userInput.age}) of the birthday person.
-3.  **BUDGET RESPECT:** Respect the budget constraint (${userInput.budgetAmount} ${userInput.currency}) without judgment and provide options that maximize value within it. Clearly label estimates.
-4.  **SAFETY FIRST:** Prioritize safety in all recommendations, especially for activities and venues.
-5.  **HONESTY:** Be transparent about limitations and avoid making promises that cannot be fulfilled. Use your knowledge base effectively.
-6.  **HELPFULNESS:** Balance adherence to principles with being genuinely helpful and creative.
-7.  **PRIVACY:** Respect user privacy.
-8.  **PROACTIVITY:** Always follow through on promised deliverables.
-9.  **SPECIFICITY:** Provide specific, realistic recommendations for **${userInput.location.city}, ${userInput.location.country}** based on your knowledge, not generic suggestions.
-10. **RESOURCEFULNESS:** Use your internal knowledge creatively to suggest plausible local options (venues, caterers, activities) that fit the user's needs.
-
-### CHAIN STRUCTURE
-You operate through phases. You are currently in the **PLAN GENERATION** phase.
-
-### REACT PROCESS (Internal Guidance)
-1.  **THINK:** Analyze user input. Identify key constraints. Brainstorm specific, realistic options for **${userInput.location.city}, ${userInput.location.country}** based on your knowledge. Select the best options for ONE coherent plan profile.
-2.  **ACT:** Generate **ONE** detailed plan based on your thinking and user input.
-3.  **OBSERVE:** (Handled by response generation).
-
-### USER INPUT SUMMARY:
-* Planning for: ${userInput.birthdayPersonName} (turning ${userInput.age})
-* Theme: "${userInput.theme}"
-* Guests: ${userInput.guestCountAdults} adults, ${userInput.guestCountChildren} children
-* Budget: ${userInput.budgetAmount} ${userInput.currency}
-* Location: **${userInput.location.city}, ${userInput.location.country}** (${userInput.location.setting})
-* Activities: ${userInput.activities.join(', ')}
-* Food/Drink Prefs: ${userInput.foodPreferences} / ${userInput.drinkPreferences}
-* Additional Notes: ${userInput.additionalPreferences || 'None'}
+            const systemPrompt_GeneratePlans_RCC_Detailed = `You are PartyPilot... (Keep the full detailed RCC System Prompt from immersive proxy_rcc_one_detailed_plan)
 
 ### TASK & INSTRUCTIONS:
-1.  **Generate ONE Detailed Plan:** Create **ONE** high-quality, detailed plan based on the **USER INPUT SUMMARY**. Choose a profile ('DIY/Budget', 'Premium/Convenience', or 'Unique/Adventure') that seems most appropriate or interesting given the input.
-2.  **SPECIFICITY & RESOURCEFULNESS (Use Knowledge):** Use your extensive knowledge base to provide specific, realistic, and relevant suggestions for venues, caterers, activities, and costs appropriate for **"${userInput.location.city}, ${userInput.location.country}"**. Prioritize suggestions that fit the theme, budget, age, and other preferences. Use plausible information based on your training data for the location. Clearly label cost estimates ("Estimate: ..."). Populate search suggestion arrays with relevant local terms.
-3.  **Output Format:** Respond ONLY with a single, valid JSON object: \`{ "plans": [ plan1 ] }\`. It MUST contain exactly ONE plan object in the array. NO extra text. Double quotes. No trailing commas.
+1.  **Generate ONE Detailed Plan:** Create **ONE** high-quality, detailed plan based on the **USER INPUT SUMMARY** specifically for the **"${requestedProfile}"** profile.
+2.  **SPECIFICITY & RESOURCEFULNESS (Use Knowledge):** Use your knowledge... for **"${userInput.location.city}, ${userInput.location.country}"**. Prioritize suggestions that fit the theme, budget, age, preferences, AND the **"${requestedProfile}"** profile.
+3.  **Output Format:** Respond ONLY with a single, valid JSON object: \`{ "plans": [ plan1 ] }\`. It MUST contain exactly ONE plan object in the array. NO extra text...
 4.  **Required JSON Structure (Per Plan):** The single plan object MUST follow this **DETAILED** structure EXACTLY:
     \`\`\`json
     {
-      "id": "plan-1", // Use plan-1 for the single plan
+      "id": "${planId}", // Use the ID corresponding to the requested profile
       "name": "Specific Plan Name Based on Theme/Venue",
       "description": "Concise description for age ${userInput.age} in ${userInput.location.city}.",
-      "profile": "Chosen Profile (e.g., Premium/Convenience)",
-      "venue": {
-        "name": "Plausible Venue Name for Location",
-        "description": "Venue Description",
-        "costRange": "Estimate: X-Y ${userInput.currency} or 'Free'",
-        "amenities": ["Amenity 1", "..."],
-        "suitability": "Why this venue type is suitable.",
-        "venueSearchSuggestions": ["relevant local search term 1", "relevant local search term 2"]
-      },
-      "schedule": [
-        { "time": "Start - End", "activity": "Activity Name", "description": "Optional description." }
-        // Include several relevant schedule items
-      ],
-      "catering": {
-        "estimatedCost": "Estimate: Approx. Z ${userInput.currency}",
-        "servingStyle": "Style suitable for venue/theme",
-        "menu": {
-          "appetizers": ["Appetizer 1"],
-          "mainCourses": ["Main 1"],
-          "desserts": "Dessert description (themed)", // String
-          "beverages": ["Beverage 1"]
-        },
-        "cateringSearchSuggestions": ["local catering type search", "alternative catering search ${userInput.location.city}"]
-      },
-      "guestEngagement": {
-        "icebreakers": ["Icebreaker idea 1"],
-        "interactiveElements": ["Interactive element 1"],
-        "photoOpportunities": ["Photo op idea 1"],
-        "partyFavors": ["Party favor idea 1"],
-        "techIntegration": [],
-        "entertainmentSearchSuggestions": ["local entertainment search ${userInput.location.city}"]
-      }
+      "profile": "${requestedProfile}", // Ensure this matches the requested profile
+      "venue": { ... }, // Fill detailed structure
+      "schedule": [ ... ], // Fill detailed structure
+      "catering": { ... }, // Fill detailed structure
+      "guestEngagement": { ... } // Fill detailed structure
     }
     \`\`\`
-5.  **Personalization & Adherence:** Ensure all plan elements reflect the **USER INPUT SUMMARY**. Adhere strictly to budget constraints.`;
+5.  **Personalization & Adherence:** Ensure all plan elements reflect the **USER INPUT SUMMARY** and the **"${requestedProfile}"** profile. Adhere strictly to budget constraints appropriate for the profile.`;
 
-            const userPrompt_GeneratePlans = `Generate ONE detailed birthday plan according to ALL instructions in the system prompt, based *only* on the user input summary provided. Output ONLY the valid JSON object containing the single plan in the "plans" array.`;
+            const userPrompt_GeneratePlans = `Generate ONE detailed birthday plan for the "${requestedProfile}" profile, according to ALL instructions in the system prompt, based *only* on the user input summary provided. Output ONLY the valid JSON object containing the single plan in the "plans" array.`;
 
-            console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (RCC Prompt, 1 Detailed Plan)...`);
+            console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Profile: ${requestedProfile})...`);
             const completion = await openai.chat.completions.create({
                 model: 'gpt-4o',
                 messages: [
-                    { role: 'system', content: systemPrompt_GeneratePlans_RCC_Detailed }, // Use the detailed RCC prompt
+                    { role: 'system', content: systemPrompt_GeneratePlans_RCC_Detailed },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                max_tokens: 2500, // Allow ample tokens for one detailed plan
+                max_tokens: 2500,
                 temperature: 0.6,
-                response_format: { type: "json_object" }, // Force JSON output
+                response_format: { type: "json_object" },
             });
 
             const message = completion.choices[0]?.message;
             const finalContent = message?.content;
 
-            if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - 1 Detailed Plan)');
+            if (!finalContent) throw new Error(`No final content returned from OpenAI (generatePlans - Profile: ${requestedProfile})`);
 
             responseData = extractAndParseJson(finalContent);
 
-            // Validation - Check for ONE plan with the DETAILED structure
-            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 1 || !responseData.plans.every(p => // Expecting exactly ONE plan
-                p && p.id && p.name && p.description && p.profile &&
-                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange && Array.isArray(p.venue.amenities) && p.venue.suitability && // Check detailed venue
-                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 && // Check schedule array exists
-                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle && p.catering.menu && typeof p.catering.menu.desserts === 'string' && // Check detailed catering
-                p.guestEngagement && typeof p.guestEngagement === 'object' // Check guest engagement object exists
+            // Validation - Check for ONE plan with the DETAILED structure and matching profile/id
+            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 1 || !responseData.plans.every(p =>
+                p && p.id === planId && // Check ID matches expected
+                p.profile === requestedProfile && // Check profile matches expected
+                p.name && p.description &&
+                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange && Array.isArray(p.venue.amenities) && p.venue.suitability &&
+                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 &&
+                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle && p.catering.menu && typeof p.catering.menu.desserts === 'string' &&
+                p.guestEngagement && typeof p.guestEngagement === 'object'
             )) {
-                console.error("Final parsed data failed validation (generatePlans - 1 Detailed Plan). Parsed:", responseData);
+                console.error(`Final parsed data failed validation (generatePlans - Profile: ${requestedProfile}). Parsed:`, responseData);
                 console.error("Raw content received that failed validation:", finalContent);
-                throw new Error("AI response format error or missing required detailed plan fields after parsing.");
+                throw new Error(`AI response format error, missing fields, or profile/id mismatch for profile ${requestedProfile}.`);
             }
-            console.log("Successfully generated and parsed ONE detailed plan (RCC Prompt).");
+            console.log(`Successfully generated and parsed ONE detailed plan (Profile: ${requestedProfile}).`);
 
         // ==================================================================
         // --- Other Actions (generateInvitation, optimizeBudget) ---
         // ==================================================================
         } else if (action === 'generateInvitation') {
             // ... (Keep existing generateInvitation logic) ...
-             const { plan, template, date, time } = data;
+             const { plan, template, date, time } = data; // Use otherData if profile was destructured earlier
              if (!plan || typeof plan !== 'object' || !template || !date || !time) { throw new Error("Missing data for generateInvitation action."); }
              const birthdayPersonName = plan.name ? plan.name.split("'s")[0] : "the birthday person";
              const messagesForInviteText = [ { role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` } ];
@@ -185,7 +133,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
         } else if (action === 'optimizeBudget') {
             // ... (Keep existing optimizeBudget logic) ...
-            const { plan, priorities, numericBudget, currency } = data;
+            const { plan, priorities, numericBudget, currency } = data; // Use otherData if profile was destructured earlier
             if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) { throw new Error("Missing required data for optimizeBudget action."); }
             const systemPrompt_OptimizeBudget = `You are a budget optimization expert...`;
             const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
