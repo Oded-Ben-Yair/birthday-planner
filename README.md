@@ -1,66 +1,84 @@
 # AI-Powered Birthday Planning System
 
-## Overview
+## Description
 
-This project implements an AI-Powered Birthday Planning System as detailed in the provided implementation guide. It's a web application built using React, Vite, TypeScript, and Tailwind CSS that leverages the OpenAI API to generate personalized birthday party plans based on user inputs. Users can specify details like age, theme, budget, location, and preferences to receive tailored recommendations for venues, activities, catering, and more. The application also features AI-generated invitations and budget optimization capabilities.
+An AI-driven application designed to simplify birthday party planning by generating personalized, detailed event suggestions based on user preferences. Enter your requirements, and let the AI create tailored party plans!
 
-## Features
+## Key Features
 
-* **Personalized Plan Generation:** Creates multiple distinct birthday plan options based on user input (age, theme, guest count, budget, location, activities, preferences).
-* **Detailed Recommendations:** Each plan includes suggestions for:
-    * Venue (name, description, cost, amenities, suitability)
-    * Activity Schedule (timeline with descriptions)
-    * Catering (menu items, beverages, cost, serving style)
-    * Guest Engagement (icebreakers, interactive elements, photo ops, party favors)
-* **Smart Invitation Generation:** Creates AI-generated invitation text and suggests relevant imagery based on the selected plan and theme. Users can choose different template styles (classic, playful, themed, minimalist).
-* **Budget Optimization:** Allows users to adjust priorities (venue, food, activities, etc.) and receive an AI-optimized version of their selected plan.
-* **Multi-Step User Form:** Guides the user through providing necessary details for plan generation.
-* **Interactive Plan Viewing:** Displays generated plans in expandable cards for easy comparison and detail exploration.
+* **Personalized Input:** Collects key details via a multi-step form:
+    * Birthday Person's Name & Age
+    * Party Theme
+    * Guest Composition (Adults & Children)
+    * Budget Amount & Currency (NIS, USD, EUR)
+    * Location Details (City & Setting)
+    * Activity Preferences
+    * Specific Food & Drink Wishes
+    * Other Notes/Preferences
+* **AI-Generated Plans:** Leverages OpenAI to create three distinct plan options (e.g., budget-friendly, premium, unique) tailored to user input.
+* **Detailed Suggestions:** Each plan provides comprehensive ideas for:
+    * **Venues:** Including description, cost estimate, amenities, suitability, and example search terms.
+    * **Activity Schedules:** A timed itinerary for the event.
+    * **Catering:** Menu ideas reflecting preferences, cost estimate, serving style, and example search terms.
+    * **Guest Engagement:** Ideas for icebreakers, activities, party favors, and example entertainment search terms.
+* **Smart Invitation Generator:** Creates invitation text and a unique DALL-E 3 background image based on the selected plan and chosen style template.
+* **AI Budget Optimizer:** Refines a selected plan based on user-defined priorities for different categories, aiming to align with the specified numeric budget.
 
-## Tech Stack
+## Technology Stack
 
-* **Frontend:** React, Vite, TypeScript
-* **Styling:** Tailwind CSS
-* **API:** OpenAI API (GPT-4 for text, DALL-E 3 for images)
-* **Forms:** React Hook Form
-* **State Management:** React Query (`@tanstack/react-query`), React `useState`
-* **Routing:** React Router DOM
-* **Development Environment:** Node.js, npm, Ubuntu
+* **Frontend:** React, TypeScript, Vite, Tailwind CSS
+* **AI:** OpenAI API (GPT-3.5 Turbo, DALL-E 3)
+* **Backend:** Netlify Functions (Serverless Node.js Proxy)
+* **Development:** Netlify Dev
 
-## Setup and Installation
+## Getting Started
 
 1.  **Clone the repository:**
     ```bash
-    git clone git@github.com:Oded-Ben-Yair/birthday-planner.git
+    git clone [https://github.com/Oded-Ben-Yair/birthday-planner.git](https://github.com/Oded-Ben-Yair/birthday-planner.git)
     cd birthday-planner
     ```
 2.  **Install dependencies:**
     ```bash
     npm install
     ```
-3.  **Set up Environment Variables:**
-    * Create a `.env` file in the project root directory:
-        ```bash
-        touch .env
+3.  **Environment Variables:**
+    * An OpenAI API key is required.
+    * Set the `OPENAI_API_KEY` environment variable in your Netlify deployment environment (Site configuration > Environment variables).
+    * For local development using `netlify dev`, create a `.env` file in the project root:
         ```
-    * Add your OpenAI API key to the `.env` file:
-        ```env
-        VITE_OPENAI_API_KEY=your_openai_api_key_here
+        # .env
+        OPENAI_API_KEY=sk-...your-key-here...
         ```
-    * **Note:** The `.env` file is included in `.gitignore` and should *not* be committed to version control.
+    * The application uses a Netlify function proxy (`openai-proxy`) to securely handle the API key.
 
-## Running Locally
-
-1.  **Start the development server:**
+4.  **Run Locally:**
     ```bash
-    npm run dev
+    netlify dev
     ```
-2.  Open your browser and navigate to `http://localhost:5173` (or the address provided in the terminal).
+5.  **Access:** Open your browser to the local URL provided (usually `http://localhost:5173`).
 
-## Building for Production
+## Usage
 
-1.  **Create a production build:**
-    ```bash
-    npm run build
-    ```
-2.  The production-ready files will be located in the `dist/` directory.
+1.  Open the application in your browser.
+2.  Fill out the multi-step form with your party details and preferences.
+3.  Click "Generate Birthday Plans".
+4.  Review the three generated plans on the Results page.
+5.  Select your preferred plan.
+6.  Navigate to the "Smart Invitation" tab to generate invitation text and an image.
+7.  Navigate to the "Budget Optimizer" tab to fine-tune the selected plan based on category priorities and your budget.
+
+## How It Works
+
+The application follows this flow:
+
+1.  The **React frontend** collects user input.
+2.  On submission, the frontend sends the data to a **Netlify Function (`openai-proxy.js`)**.
+3.  This serverless function acts as a secure proxy:
+    * It receives the request data.
+    * It constructs prompts based on the user input and the requested action (generate plans, invitation, optimize budget).
+    * It securely adds the `OPENAI_API_KEY` (read from environment variables).
+    * It calls the appropriate **OpenAI API** endpoints (Chat Completions for text/plans, Image Generation for invitations).
+    * It parses and validates the AI response.
+4.  The Netlify Function sends the processed data (plans, invitation components, optimized plan) back to the frontend.
+5.  The **React frontend** displays the results to the user. Plan data is temporarily stored in `localStorage` for navigation between the form and results pages.
