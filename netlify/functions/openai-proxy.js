@@ -129,8 +129,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
                     { role: 'system', content: systemPrompt_GeneratePlans },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                // ** temperature parameter REMOVED as it's incompatible **
-                response_format: { type: "json_object" },
+                // ** response_format parameter REMOVED **
                 web_search_options: {}, // Enable web search
             });
 
@@ -140,11 +139,14 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
             if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Web Search)');
 
+            // Attempt to parse, relying on prompt instructions and parser robustness
             responseData = extractAndParseJson(finalContent);
 
-            // Validation
+            // Validation - Crucial now as format isn't guaranteed by API
             if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p => p && p.id && p.name && p.venue && typeof p.venue === 'object' && p.schedule && Array.isArray(p.schedule) && p.catering && typeof p.catering === 'object' && p.guestEngagement && typeof p.guestEngagement === 'object')) {
                 console.error("Final parsed data failed validation (generatePlans - Web Search). Parsed:", responseData);
+                // Log the raw content if parsing failed or structure is wrong
+                console.error("Raw content received that failed validation:", finalContent);
                 throw new Error("AI response format error or missing required plan fields/objects after parsing.");
             }
             console.log("Successfully generated and parsed plans (using Web Search Tool).");
@@ -162,7 +164,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
              const birthdayPersonName = plan.name ? plan.name.split("'s")[0] : "the birthday person";
              const messagesForInviteText = [ { role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` } ];
              console.log("Calling OpenAI (gpt-3.5-turbo) for invitation text...");
-             const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: messagesForInviteText, temperature: 0.7 }); // Keep temp here if model supports it
+             const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: messagesForInviteText, temperature: 0.7 });
              const text = textCompletion.choices[0]?.message?.content?.trim() || `You're invited...`;
              console.log("Calling OpenAI (DALL-E) for invitation image...");
              const imagePrompt = `Illustration for a birthday invitation. Theme: ${plan.name}. Style: ${template}. For ${birthdayPersonName}'s birthday. Key elements: ${plan.description}. Vibrant and celebratory.`;
@@ -179,8 +181,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
             const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
             const messagesForOptimize = [ { role: 'system', content: systemPrompt_OptimizeBudget }, { role: 'user', content: userPrompt_OptimizeBudget } ];
             console.log("Calling OpenAI (gpt-4o) for optimizeBudget...");
-            // Keep temperature if gpt-4o supports it for this action
-            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, });
+            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, }); // Keep response_format if gpt-4o supports it here
             const content = completion.choices[0]?.message?.content;
             if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
             const parsedResponse = extractAndParseJson(content);
@@ -205,6 +206,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
         const status = caughtError?.status || caughtError?.response?.status || 500;
         const message = caughtError instanceof Error ? caughtError.message : 'An internal server error occurred.';
         if (caughtError instanceof OpenAI.APIError) { console.error('OpenAI API Error Details:', { status: caughtError.status, message: caughtError.message, code: caughtError.code, type: caughtError.type }); }
+        // Return the error message in the response body for the frontend to catch
         return { statusCode: status, headers, body: JSON.stringify({ error: message }) };
     }
 };
