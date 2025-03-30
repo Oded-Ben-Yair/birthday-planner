@@ -41,7 +41,7 @@ export const handler = async (event) => {
         let responseData = null;
 
         // ==================================================================
-        // --- Action: Generate Birthday Plans (Standard Model + Simplified JSON) ---
+        // --- Action: Generate Birthday Plans (Minimal Request Diagnostic) ---
         // ==================================================================
         if (action === 'generatePlans') {
             const { userInput } = data;
@@ -49,95 +49,67 @@ export const handler = async (event) => {
                 throw new Error("Missing required user input data, especially location city/country.");
             }
 
-            // --- Define Prompt using RCC Structure for Standard Model ---
-            const systemPrompt_GeneratePlans = `You are PartyPilot, an AI-powered birthday planning assistant.
-
-### CONSTITUTIONAL PRINCIPLES
-(Keep the 10 principles: INCLUSIVITY, AGE-APPROPRIATENESS, BUDGET RESPECT, SAFETY FIRST, HONESTY, HELPFULNESS, PRIVACY, PROACTIVITY, SPECIFICITY, RESOURCEFULNESS)
-* Apply these principles, especially ensuring age (${userInput.age}) and budget (${userInput.budgetAmount} ${userInput.currency}) appropriateness. Use your knowledge to provide specific and realistic suggestions for the target location.
-
-### CHAIN STRUCTURE
-You operate through phases. You are currently in the **PLAN GENERATION** phase.
-
-### REACT PROCESS (Internal Guidance)
-1.  **THINK:** Analyze user input. Identify key constraints and preferences. Use your internal knowledge to brainstorm specific, realistic options for **${userInput.location.city}, ${userInput.location.country}**.
-2.  **ACT:** Generate 3 distinct plans ('DIY/Budget', 'Premium/Convenience', 'Unique/Adventure') incorporating the most suitable options based on your knowledge and the user input.
-3.  **OBSERVE:** (Handled by response generation).
-
-### USER INPUT SUMMARY:
-* Planning for: ${userInput.birthdayPersonName} (turning ${userInput.age})
-* Theme: "${userInput.theme}"
+            // --- Define Simplified Prompt for Diagnostic ---
+            // Temporarily removing detailed RCC structure to isolate truncation issue
+            const systemPrompt_GeneratePlans_Simple = `You are a helpful birthday planning assistant.
+Generate ONE birthday plan based on the user's input.
+Respond ONLY with a single, valid JSON object: \`{ "plans": [ plan1 ] }\`. NO extra text. Double quotes. No trailing commas.
+Use this SIMPLIFIED JSON structure for the single plan object inside the "plans" array:
+\`\`\`json
+{
+  "id": "plan-1",
+  "name": "Specific Plan Name Based on Theme/Venue",
+  "description": "Concise description for age ${userInput.age} in ${userInput.location.city}.",
+  "profile": "DIY/Budget", // Or "Premium/Convenience" or "Unique/Adventure" (choose one appropriate)
+  "venue": { "name": "Plausible Venue Name for ${userInput.location.city}", "costRange": "Estimate: X-Y ${userInput.currency} or 'Free'" },
+  "schedule": [ { "time": "Main Time Slot", "activity": "Primary Activity Suggestion" } ],
+  "catering": { "estimatedCost": "Estimate: Approx. Z ${userInput.currency}", "servingStyle": "Brief Style Suggestion" },
+  "guestEngagement": { "interactiveElements": ["One Key Interactive Element Suggestion"] }
+}
+\`\`\`
+Base the plan details on the following user input, making plausible suggestions for the location:
+* Birthday Person: ${userInput.birthdayPersonName} (Age: ${userInput.age})
+* Theme: ${userInput.theme}
 * Guests: ${userInput.guestCountAdults} adults, ${userInput.guestCountChildren} children
 * Budget: ${userInput.budgetAmount} ${userInput.currency}
-* Location: **${userInput.location.city}, ${userInput.location.country}** (${userInput.location.setting})
+* Location: ${userInput.location.city}, ${userInput.location.country} (${userInput.location.setting})
 * Activities: ${userInput.activities.join(', ')}
-* Food/Drink Prefs: ${userInput.foodPreferences} / ${userInput.drinkPreferences}
-* Additional Notes: ${userInput.additionalPreferences || 'None'}
+* Food/Drink: ${userInput.foodPreferences} / ${userInput.drinkPreferences}`;
 
-### TASK & INSTRUCTIONS:
-1.  **Generate 3 Distinct Plans:** Create 'DIY/Budget', 'Premium/Convenience', 'Unique/Adventure' plans based on the **USER INPUT SUMMARY**.
-2.  **SPECIFICITY & RESOURCEFULNESS (Use Knowledge):** Use your knowledge base to provide specific, realistic, and relevant suggestions appropriate for **"${userInput.location.city}, ${userInput.location.country}"**. Prioritize suggestions that fit the theme, budget, age, and other preferences. Use plausible information based on your training data for the location. Clearly label cost estimates ("Estimate: ...").
-3.  **Output Format:** Respond ONLY with a single, valid JSON object: \`{ "plans": [ plan1, plan2, plan3 ] }\`. NO extra text. Double quotes. No trailing commas.
-4.  **Required JSON Structure (Per Plan):** Each plan object MUST follow this **SIMPLIFIED** structure EXACTLY:
-    \`\`\`json
-    {
-      "id": "plan-1", // Assign plan-1, plan-2, plan-3
-      "name": "Specific Plan Name Based on Theme/Venue",
-      "description": "Concise description for age ${userInput.age} in ${userInput.location.city}.",
-      "profile": "DIY/Budget", // Or "Premium/Convenience" or "Unique/Adventure"
-      "venue": { // SIMPLIFIED
-        "name": "Plausible Venue Name for Location",
-        "costRange": "Estimate: X-Y ${userInput.currency} or 'Free'"
-      },
-      "schedule": [ // SIMPLIFIED - Just one key activity
-        { "time": "Main Time Slot", "activity": "Primary Activity Suggestion" }
-      ],
-      "catering": { // SIMPLIFIED
-        "estimatedCost": "Estimate: Approx. Z ${userInput.currency}",
-        "servingStyle": "Brief Style Suggestion (e.g., BBQ, Pizza, Tapas)"
-      },
-      "guestEngagement": { // SIMPLIFIED - Just one key idea
-        "interactiveElements": ["One Key Interactive Element Suggestion"]
-      }
-    }
-    \`\`\`
-    **(Note: Details like amenities, full menus, suitability, search suggestions, etc., are temporarily omitted to reduce output size).**
-5.  **Personalization & Adherence:** Ensure the simplified plan elements reflect the **USER INPUT SUMMARY**. Adhere strictly to budget constraints for each profile.`;
+            const userPrompt_GeneratePlans_Simple = `Generate ONE birthday plan according to the system prompt instructions and the simplified JSON structure specified. Output ONLY the valid JSON object.`;
 
-            const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans according to ALL instructions in the system prompt, based *only* on the user input summary provided in the system prompt's PREVIOUS CONTEXT section. Use your knowledge to provide specific details relevant to the location. Output ONLY the valid JSON object containing the 3 plans in the **SIMPLIFIED** structure specified.`;
-
-            console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Standard Model, Simplified JSON Mode)...`);
+            console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Minimal Request Diagnostic)...`);
             const completion = await openai.chat.completions.create({
                 model: 'gpt-4o',
                 messages: [
-                    { role: 'system', content: systemPrompt_GeneratePlans },
-                    { role: 'user', content: userPrompt_GeneratePlans }
+                    { role: 'system', content: systemPrompt_GeneratePlans_Simple },
+                    { role: 'user', content: userPrompt_GeneratePlans_Simple }
                 ],
-                max_tokens: 3000, // Reduced slightly as output is simpler
-                temperature: 0.6,
-                response_format: { type: "json_object" },
+                max_tokens: 1500, // Reduced significantly for simpler output
+                temperature: 0.7, // Can use temperature with gpt-4o
+                response_format: { type: "json_object" }, // Keep forcing JSON
             });
 
             const message = completion.choices[0]?.message;
             const finalContent = message?.content;
 
-            if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Standard Model)');
+            if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Minimal Request)');
 
             responseData = extractAndParseJson(finalContent);
 
-            // Validation - Check only for the simplified structure
-            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p =>
+            // Validation - Check for ONE plan with the simplified structure
+            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 1 || !responseData.plans.every(p => // Expecting exactly ONE plan now
                 p && p.id && p.name && p.description && p.profile &&
-                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange && // Simplified venue check
-                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 && // Simplified schedule check
-                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle && // Simplified catering check
-                p.guestEngagement && typeof p.guestEngagement === 'object' && p.guestEngagement.interactiveElements // Simplified engagement check
+                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange &&
+                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 &&
+                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle &&
+                p.guestEngagement && typeof p.guestEngagement === 'object' && p.guestEngagement.interactiveElements
             )) {
-                console.error("Final parsed data failed validation (generatePlans - Simplified JSON). Parsed:", responseData);
+                console.error("Final parsed data failed validation (generatePlans - Minimal Request). Parsed:", responseData);
                 console.error("Raw content received that failed validation:", finalContent);
                 throw new Error("AI response format error or missing required simplified plan fields after parsing.");
             }
-            console.log("Successfully generated and parsed plans (using Standard Model + Simplified JSON).");
+            console.log("Successfully generated and parsed ONE simplified plan (Minimal Request Diagnostic).");
 
         // ==================================================================
         // --- Other Actions (generateInvitation, optimizeBudget) ---
