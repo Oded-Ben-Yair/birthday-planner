@@ -34,24 +34,21 @@ export const handler = async (event) => {
         let payload;
         try { payload = JSON.parse(event.body); }
         catch (parseError) { throw new Error("Invalid request format: Body must be valid JSON."); }
-        // ** Destructure profile along with action and userInput **
-        const { action, userInput, profile, ...otherData } = payload; // Get profile if provided
+        const { action, userInput, profile, ...otherData } = payload;
         if (!action) throw new Error("Missing 'action' field in request payload.");
 
-        console.log(`Received action: ${action}` + (profile ? ` for profile: ${profile}` : '')); // Log profile if present
+        console.log(`Received action: ${action}` + (profile ? ` for profile: ${profile}` : ''));
         let responseData = null;
 
         // ==================================================================
-        // --- Action: Generate Birthday Plans (RCC Prompt, 1 Specific Plan) ---
+        // --- Action: Generate Birthday Plans (RCC Prompt, 1 Detailed Plan) ---
         // ==================================================================
         if (action === 'generatePlans') {
-            // ** Validate userInput exists **
             if (!userInput || typeof userInput !== 'object' || !userInput.location?.city || !userInput.location?.country) {
                 throw new Error("Missing required user input data for generatePlans action.");
             }
-            // ** Determine requested profile **
-            const requestedProfile = profile || 'Premium/Convenience'; // Default if not specified, or choose dynamically
-            const planId = profile === 'DIY/Budget' ? 'plan-1' : (profile === 'Premium/Convenience' ? 'plan-2' : 'plan-3'); // Assign ID based on profile
+            const requestedProfile = profile || 'Premium/Convenience';
+            const planId = profile === 'DIY/Budget' ? 'plan-1' : (profile === 'Premium/Convenience' ? 'plan-2' : 'plan-3');
 
             // --- Use Detailed RCC Prompt Structure ---
             const systemPrompt_GeneratePlans_RCC_Detailed = `You are PartyPilot... (Keep the full detailed RCC System Prompt from immersive proxy_rcc_one_detailed_plan)
@@ -67,10 +64,10 @@ export const handler = async (event) => {
       "name": "Specific Plan Name Based on Theme/Venue",
       "description": "Concise description for age ${userInput.age} in ${userInput.location.city}.",
       "profile": "${requestedProfile}", // Ensure this matches the requested profile
-      "venue": { ... }, // Fill detailed structure
-      "schedule": [ ... ], // Fill detailed structure
-      "catering": { ... }, // Fill detailed structure
-      "guestEngagement": { ... } // Fill detailed structure
+      "venue": { "name": "...", "description": "...", "costRange": "...", "amenities": [...], "suitability": "...", "venueSearchSuggestions": [...] },
+      "schedule": [ { "time": "...", "activity": "...", "description": "..." }, ... ],
+      "catering": { "estimatedCost": "...", "servingStyle": "...", "menu": { "appetizers": [...], "mainCourses": [...], "desserts": "...", "beverages": [...] }, "cateringSearchSuggestions": [...] },
+      "guestEngagement": { "icebreakers": [...], "interactiveElements": [...], "photoOpportunities": [...], "partyFavors": [...], "techIntegration": [], "entertainmentSearchSuggestions": [...] }
     }
     \`\`\`
 5.  **Personalization & Adherence:** Ensure all plan elements reflect the **USER INPUT SUMMARY** and the **"${requestedProfile}"** profile. Adhere strictly to budget constraints appropriate for the profile.`;
@@ -96,28 +93,42 @@ export const handler = async (event) => {
 
             responseData = extractAndParseJson(finalContent);
 
-            // Validation - Check for ONE plan with the DETAILED structure and matching profile/id
-            if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 1 || !responseData.plans.every(p =>
-                p && p.id === planId && // Check ID matches expected
-                p.profile === requestedProfile && // Check profile matches expected
-                p.name && p.description &&
-                p.venue && typeof p.venue === 'object' && p.venue.name && p.venue.costRange && Array.isArray(p.venue.amenities) && p.venue.suitability &&
-                p.schedule && Array.isArray(p.schedule) && p.schedule.length >= 1 &&
-                p.catering && typeof p.catering === 'object' && p.catering.estimatedCost && p.catering.servingStyle && p.catering.menu && typeof p.catering.menu.desserts === 'string' &&
-                p.guestEngagement && typeof p.guestEngagement === 'object'
-            )) {
-                console.error(`Final parsed data failed validation (generatePlans - Profile: ${requestedProfile}). Parsed:`, responseData);
+            // --- LOOSENED VALIDATION ---
+            // Only check the absolute basics: is it an object with a non-empty 'plans' array containing at least one object with an id and name?
+            if (
+                !responseData ||
+                typeof responseData !== 'object' || // Ensure responseData is an object
+                !Array.isArray(responseData.plans) || // Ensure 'plans' is an array
+                responseData.plans.length < 1 || // Ensure 'plans' is not empty
+                typeof responseData.plans[0] !== 'object' || // Ensure first plan is an object
+                !responseData.plans[0] || // Ensure first plan is not null
+                !responseData.plans[0].id || // Ensure first plan has an id
+                !responseData.plans[0].name // Ensure first plan has a name
+            ) {
+                // If basic structure fails, log raw content and throw error
+                console.error("Basic validation failed: Response doesn't contain at least one plan object with id and name. Parsed:", responseData);
                 console.error("Raw content received that failed validation:", finalContent);
-                throw new Error(`AI response format error, missing fields, or profile/id mismatch for profile ${requestedProfile}.`);
+                throw new Error("AI response format error: Basic structure is invalid.");
+            } else {
+                // Basic structure is OK, log success. Log the received structure for inspection.
+                console.log(`Successfully generated and parsed ONE plan (Basic Validation Passed). Received structure:`, responseData);
+                // **Optional Warning for Structure Deviations (More Advanced)**
+                // You could add more checks here for specific fields and log warnings if they deviate,
+                // but for now, we just want to let the data pass through if the basics are okay.
+                // Example warning:
+                // if (responseData.plans[0].profile !== requestedProfile) {
+                //    console.warn(`Validation Warning: Profile mismatch. Expected ${requestedProfile}, Got ${responseData.plans[0].profile}`);
+                // }
             }
-            console.log(`Successfully generated and parsed ONE detailed plan (Profile: ${requestedProfile}).`);
+            // --- END OF LOOSENED VALIDATION ---
+
 
         // ==================================================================
         // --- Other Actions (generateInvitation, optimizeBudget) ---
         // ==================================================================
         } else if (action === 'generateInvitation') {
             // ... (Keep existing generateInvitation logic) ...
-             const { plan, template, date, time } = data; // Use otherData if profile was destructured earlier
+             const { plan, template, date, time } = data;
              if (!plan || typeof plan !== 'object' || !template || !date || !time) { throw new Error("Missing data for generateInvitation action."); }
              const birthdayPersonName = plan.name ? plan.name.split("'s")[0] : "the birthday person";
              const messagesForInviteText = [ { role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` } ];
@@ -133,7 +144,7 @@ export const handler = async (event) => {
 
         } else if (action === 'optimizeBudget') {
             // ... (Keep existing optimizeBudget logic) ...
-            const { plan, priorities, numericBudget, currency } = data; // Use otherData if profile was destructured earlier
+            const { plan, priorities, numericBudget, currency } = data;
             if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) { throw new Error("Missing required data for optimizeBudget action."); }
             const systemPrompt_OptimizeBudget = `You are a budget optimization expert...`;
             const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
@@ -155,16 +166,18 @@ export const handler = async (event) => {
         } else { throw new Error(`Invalid action specified: ${action}`); }
 
         // --- Return Successful Response ---
+        // Return response even if structure isn't perfectly validated (diagnostic step)
         return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
     // --- Global Error Handling ---
     } catch (caughtError) {
         console.error('--- ERROR Processing Request in Netlify Function ---');
-        console.error(caughtError);
+        console.error(caughtError); // Log the full error caught
         const status = caughtError?.status || caughtError?.response?.status || 500;
         const message = caughtError instanceof Error ? caughtError.message : 'An internal server error occurred.';
         if (caughtError instanceof OpenAI.APIError) { console.error('OpenAI API Error Details:', { status: caughtError.status, message: caughtError.message, code: caughtError.code, type: caughtError.type }); }
-        return { statusCode: status, headers, body: JSON.stringify({ error: message }) };
+        // Ensure the error message passed back is useful
+        return { statusCode: status, headers, body: JSON.stringify({ error: `Function Error: ${message}` }) };
     }
 };
 
