@@ -1,77 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useParams, useNavigate } from 'react-router-dom';
 import EditPlanSectionModal from '../components/EditPlanSectionModal';
-
-// --- Interfaces ---
-// NOTE: It's assumed more detailed interfaces exist in 'src/types/index.ts'
-// We are updating the Plan interface here to reflect the expected structure based on logs.
-
-interface ScheduleItem {
-  time: string;
-  activity: string;
-  details?: string;
-}
-
-// Assumed structure based on logs (Ideally defined in src/types/index.ts)
-interface VenueDetails {
-  name: string;
-  address?: string;
-  contact?: string;
-  description?: string;
-  costRange?: string;
-  amenities?: string[] | string; // Allow string as fallback based on error
-  suitability?: string;
-  venueSearchSuggestions?: string[];
-}
-
-// Assumed structure based on logs (Ideally defined in src/types/index.ts)
-interface MenuItem {
-    appetizers?: string[] | string; // Allow string as fallback
-    mainCourses?: string[] | string; // Allow string as fallback
-    desserts?: string[] | string; // Allow string as fallback
-    beverages?: string[] | string; // Allow string as fallback
-}
-
-// Assumed structure based on logs (Ideally defined in src/types/index.ts)
-interface CateringDetails {
-  estimatedCost?: string;
-  servingStyle?: string;
-  menu?: MenuItem;
-  cateringSearchSuggestions?: string[];
-}
-
-// Assumed structure based on logs (Ideally defined in src/types/index.ts)
-interface GuestEngagementDetails {
-    icebreakers?: string[] | string; // Allow string as fallback
-    interactiveElements?: string[] | string; // Allow string as fallback
-    photoOpportunities?: string[] | string; // Allow string as fallback
-    partyFavors?: string[] | string; // Allow string as fallback
-    techIntegration?: string[] | string; // Allow string as fallback
-    entertainmentSearchSuggestions?: string[];
-}
-
-
-// Updated Plan interface reflecting actual data structure
-interface Plan {
-  id: string;
-  name: string;
-  description: string;
-  profile?: string;
-  date: string;
-  venue: VenueDetails;
-  schedule: ScheduleItem[];
-  catering?: CateringDetails;
-  guestEngagement?: GuestEngagementDetails;
-}
+// Import types from the central types file
+import type {
+    BirthdayPlan,
+    Venue,
+    Catering,
+    GuestEngagement,
+    ScheduleItem,
+    CateringMenu // Import CateringMenu specifically if needed, or rely on Catering type
+} from '../types';
 
 /**
  * PlanDetail Component
  * Displays plan details and allows editing via a modal.
+ * Aligned with definitions in src/types/index.ts
  */
 const PlanDetail: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
-  const navigate = useNavigate(); // Hook for navigation
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const navigate = useNavigate();
+  // Use the imported BirthdayPlan type for state
+  const [plan, setPlan] = useState<BirthdayPlan | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -103,19 +52,22 @@ const PlanDetail: React.FC = () => {
         throw new Error("No plans found in storage.");
       }
 
-      const storedPlans: Plan[] = JSON.parse(storedPlansString);
+      // Parse using BirthdayPlan type
+      const storedPlans: BirthdayPlan[] = JSON.parse(storedPlansString);
       console.log("PlanDetail: Successfully parsed plans from storage:", storedPlans);
 
       const foundPlan = storedPlans.find(p => p.id === planId);
 
       if (foundPlan) {
         console.log("PlanDetail: Plan found:", foundPlan);
-        const validatedPlan: Plan = {
+        // Basic validation/default setting - could use type guard from types/index.ts if needed
+        const validatedPlan: BirthdayPlan = {
             ...foundPlan,
-            venue: foundPlan.venue || { name: 'N/A' },
+            // Ensure required fields have defaults if somehow missing after parse, though types say they exist
+            venue: foundPlan.venue || { name: 'N/A', description: '', costRange: '', amenities: [], suitability: '' },
             schedule: foundPlan.schedule || [],
-            catering: foundPlan.catering || undefined,
-            guestEngagement: foundPlan.guestEngagement || undefined
+            catering: foundPlan.catering || { estimatedCost: '', servingStyle: '', menu: { appetizers: [], mainCourses: [], desserts: '', beverages: [] } },
+            guestEngagement: foundPlan.guestEngagement || { icebreakers: [], interactiveElements: [], photoOpportunities: [], partyFavors: [] }
         };
         setPlan(validatedPlan);
       } else {
@@ -132,11 +84,12 @@ const PlanDetail: React.FC = () => {
   }, [planId]);
 
   // --- Modal Control Functions ---
-  const handleEditClick = (section: keyof Plan | string) => {
+  const handleEditClick = (section: keyof BirthdayPlan | string) => {
     if (!plan) return;
     let currentData: any;
+    // Check against BirthdayPlan keys
     if (section in plan) {
-         currentData = plan[section as keyof Plan];
+         currentData = plan[section as keyof BirthdayPlan];
     } else {
          console.warn(`Attempting to edit unhandled or invalid section: ${section}`);
          return;
@@ -150,15 +103,24 @@ const PlanDetail: React.FC = () => {
     setDataToEdit(null);
   };
 
+  // Saves changes from the modal
   const handleSaveChanges = (updatedData: any) => {
     if (!plan || !editingSection) return;
-    const updatedPlan: Plan = { ...plan, [editingSection]: updatedData };
+
+    // Use BirthdayPlan type for updated plan
+    const updatedPlan: BirthdayPlan = {
+        ...plan,
+        [editingSection]: updatedData,
+     };
+
     setPlan(updatedPlan);
     setError(null);
+
     try {
       const currentStoredPlansString = localStorage.getItem('generatedPlans');
       if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving.");
-      const storedPlans: Plan[] = JSON.parse(currentStoredPlansString);
+      // Parse using BirthdayPlan type
+      const storedPlans: BirthdayPlan[] = JSON.parse(currentStoredPlansString);
       const planIndex = storedPlans.findIndex(p => p.id === planId);
       if (planIndex === -1) throw new Error(`Plan with ID ${planId} not found in storage during save attempt.`);
       storedPlans[planIndex] = updatedPlan;
@@ -170,20 +132,13 @@ const PlanDetail: React.FC = () => {
     }
   };
 
-  // --- Helper to render list items ---
-  // Updated to be safer and log issues
+  // --- Helper to render list items (Handles string[] or string fallback) ---
   const renderList = (items: string[] | string | undefined, title: string) => {
-      // Log input for debugging
       console.log(`renderList called for: ${title}`, 'with items:', items);
-
-      // Handle null or undefined items
       if (!items) return null;
 
-      // Check if items is actually an array
       if (Array.isArray(items)) {
-          // If it's an empty array, return null (or a message)
           if (items.length === 0) return null;
-          // If it's a non-empty array, map it
           return (
               <>
                   <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4>
@@ -193,7 +148,6 @@ const PlanDetail: React.FC = () => {
               </>
           );
       } else if (typeof items === 'string' && items.trim() !== '') {
-          // Handle case where 'items' is a non-empty string instead of an array
           console.warn(`renderList Warning: Expected an array for '${title}', but received a string: "${items}". Rendering as single item.`);
           return (
                <>
@@ -204,19 +158,16 @@ const PlanDetail: React.FC = () => {
               </>
           );
       } else {
-          // Handle other unexpected types (log and return null)
           console.warn(`renderList Warning: Expected an array for '${title}', but received type '${typeof items}'. Value:`, items);
           return null;
       }
   }
 
-
   // --- Render Logic ---
   if (isLoading) return <div className="p-6 text-center">Loading plan details...</div>;
   const displayError = error ? <div className="p-4 mb-4 text-center text-red-600 bg-red-100 border border-red-300 rounded-md">{error}</div> : null;
   if (!plan && !isLoading) return <div className="p-6 text-center text-red-600">Error: {error || 'Plan not found.'}</div>;
-  if (!plan) return null;
-
+  if (!plan) return null; // Should be BirthdayPlan | null
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-4xl font-inter">
@@ -225,6 +176,7 @@ const PlanDetail: React.FC = () => {
       {/* Plan Name & Profile */}
       <div className="flex justify-between items-start mb-6 pb-2 border-b border-gray-300">
         <div>
+            {/* Use BirthdayPlan properties */}
             <h1 className="text-3xl font-bold">{plan.name}</h1>
             {plan.profile && <p className="text-sm text-gray-500 mt-1">Profile: {plan.profile}</p>}
         </div>
@@ -249,21 +201,21 @@ const PlanDetail: React.FC = () => {
         <p className="text-gray-600">{plan.date ? new Date(plan.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : 'Not set'}</p>
       </section>
 
-      {/* Venue Section */}
+      {/* Venue Section - Aligned with Venue type from types/index.ts */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Venue</h2>
            <button onClick={() => handleEditClick('venue')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
          </div>
+         {/* Use optional chaining ?. for safety, even if type requires venue */}
          {plan.venue ? (
              <div className="space-y-2 text-gray-600">
                 <p><span className="font-medium text-gray-800">Name:</span> {plan.venue.name || 'N/A'}</p>
                 {plan.venue.description && <p><span className="font-medium text-gray-800">Description:</span> {plan.venue.description}</p>}
-                {plan.venue.address && <p><span className="font-medium text-gray-800">Address:</span> {plan.venue.address}</p>}
-                {plan.venue.contact && <p><span className="font-medium text-gray-800">Contact:</span> {plan.venue.contact}</p>}
+                {/* Removed address and contact as they are not in the Venue type */}
                 {plan.venue.costRange && <p><span className="font-medium text-gray-800">Cost Range:</span> {plan.venue.costRange}</p>}
                 {plan.venue.suitability && <p><span className="font-medium text-gray-800">Suitability:</span> {plan.venue.suitability}</p>}
-                {/* Call safer renderList */}
+                {/* Render amenities using the robust helper */}
                 {renderList(plan.venue.amenities, 'Amenities')}
                 {/* {renderList(plan.venue.venueSearchSuggestions, 'Search Suggestions')} */}
              </div>
@@ -292,23 +244,31 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* Catering Section */}
+      {/* Catering Section - Aligned with Catering and CateringMenu types */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Catering</h2>
            <button onClick={() => handleEditClick('catering')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
          </div>
+         {/* Use optional chaining ?. for safety */}
          {plan.catering ? (
              <div className="space-y-2 text-gray-600">
                  {plan.catering.estimatedCost && <p><span className="font-medium text-gray-800">Estimated Cost:</span> {plan.catering.estimatedCost}</p>}
                  {plan.catering.servingStyle && <p><span className="font-medium text-gray-800">Serving Style:</span> {plan.catering.servingStyle}</p>}
+                 {/* Use optional chaining for menu */}
                  {plan.catering.menu && (
                      <div className="mt-3 pt-3 border-t border-gray-200">
                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Menu</h3>
-                         {/* Call safer renderList */}
+                         {/* Use renderList for arrays */}
                          {renderList(plan.catering.menu.appetizers, 'Appetizers')}
                          {renderList(plan.catering.menu.mainCourses, 'Main Courses')}
-                         {renderList(plan.catering.menu.desserts, 'Desserts')}
+                         {/* Render desserts directly as it's a string */}
+                         {plan.catering.menu.desserts && (
+                             <>
+                                <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">Desserts</h4>
+                                <p className="text-sm text-gray-600 pl-2">{plan.catering.menu.desserts}</p>
+                             </>
+                         )}
                          {renderList(plan.catering.menu.beverages, 'Beverages')}
                      </div>
                  )}
@@ -319,15 +279,15 @@ const PlanDetail: React.FC = () => {
          )}
       </section>
 
-      {/* Guest Engagement Section */}
+      {/* Guest Engagement Section - Aligned with GuestEngagement type */}
        <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Guest Engagement</h2>
            {/* <button onClick={() => handleEditClick('guestEngagement')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button> */}
          </div>
+         {/* Use optional chaining ?. for safety */}
          {plan.guestEngagement ? (
              <div className="space-y-2 text-gray-600">
-                 {/* Call safer renderList */}
                  {renderList(plan.guestEngagement.icebreakers, 'Icebreakers')}
                  {renderList(plan.guestEngagement.interactiveElements, 'Interactive Elements')}
                  {renderList(plan.guestEngagement.photoOpportunities, 'Photo Opportunities')}
