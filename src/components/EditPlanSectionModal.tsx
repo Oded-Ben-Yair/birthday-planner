@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 // Import ScheduleItem type from your central types file
 // Also import Venue if needed for that section's editing logic
-import type { ScheduleItem, Venue } from '../types';
+import type { ScheduleItem, Venue } from '../types'; // Assuming Venue is also defined/needed
 
 // Define the props the modal will accept
 interface EditPlanSectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   section: string | null; // Which section is being edited ('name', 'description', 'venue', 'schedule', etc.)
-  currentData: any; // Data for the section being edited
+  currentData: any; // Data for the section being edited (e.g., string for name, Venue object for venue, ScheduleItem[] for schedule)
   onSave: (updatedData: any) => void; // Function to call when saving changes
 }
 
@@ -24,6 +24,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
   onSave,
 }) => {
   // State to hold the form data within the modal
+  // Needs to handle different data types (string, object, array)
   const [formData, setFormData] = useState<any>(null);
 
   // Effect to update internal form state when the modal opens or data changes
@@ -86,6 +87,9 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
 
   /**
    * Handles changes within a specific schedule item's input fields.
+   * @param index The index of the schedule item being changed.
+   * @param field The field within the item being changed ('time', 'activity', 'details').
+   * @param value The new value of the field.
    */
   const handleScheduleItemChange = (index: number, field: keyof ScheduleItem, value: string) => {
     setFormData((prevSchedule: ScheduleItem[] | null) => {
@@ -103,6 +107,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
 
   /**
    * Deletes a schedule item at the specified index.
+   * @param index The index of the schedule item to delete.
    */
   const handleDeleteScheduleItem = (index: number) => {
      setFormData((prevSchedule: ScheduleItem[] | null) => {
@@ -158,6 +163,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
           </div>
         );
        case 'date':
+         // Ensure dateValue is calculated correctly even if formData is initially null
          const dateValue = formData ? (new Date(formData).toISOString().split('T')[0]) : '';
          return (
            <div>
@@ -208,6 +214,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
                             className="absolute top-1 right-1 text-red-500 hover:text-red-700 focus:outline-none p-1 rounded-full hover:bg-red-100"
                             aria-label="Delete schedule item"
                         >
+                            {/* Simple X icon using SVG */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -256,6 +263,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
                     onClick={handleAddScheduleItem}
                     className="mt-2 px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center"
                 >
+                   {/* Simple + icon using SVG */}
                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                    </svg>
@@ -286,6 +294,7 @@ const EditPlanSectionModal: React.FC<EditPlanSectionModalProps> = ({
 
   return (
     // Modal backdrop
+    // Added transition classes for smooth fade-in/out
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 transition-opacity duration-300 ease-in-out p-4 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
       {/* Modal content area with scrolling for long lists */}
       {/* Added transform for smooth entry/exit */}
