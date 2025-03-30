@@ -1,83 +1,98 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import EditPlanSectionModal from '../components/EditPlanSectionModal';
+// Import BudgetOptimizer component - Assuming it exists or will be created
+// import BudgetOptimizerModal from '../components/BudgetOptimizerModal'; // Or whatever the component name is
+import { optimizeBudget } from '../utils/api'; // Import the API function
 // Import types from the central types file
 import type {
     BirthdayPlan,
-    Venue, // Assuming Venue is the correct detailed type name in types/index.ts
-    Catering, // Assuming Catering is the correct detailed type name
-    GuestEngagement, // Assuming GuestEngagement is the correct detailed type name
+    UserInput, // Import UserInput
+    BudgetPriorities, // Import BudgetPriorities
+    Venue,
+    Catering,
+    GuestEngagement,
     ScheduleItem,
-    CateringMenu // Keep if needed, or rely on Catering type
+    CateringMenu
 } from '../types';
 
 /**
  * PlanDetail Component
- * Displays plan details, allows editing via a modal, and includes navigation.
+ * Displays plan details, allows editing, and includes budget optimization trigger.
  */
 const PlanDetail: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
-  const navigate = useNavigate(); // Hook for navigation
-  // Use the imported BirthdayPlan type for state
+  const navigate = useNavigate();
   const [plan, setPlan] = useState<BirthdayPlan | null>(null);
+  const [userInput, setUserInput] = useState<UserInput | null>(null); // State for user input
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [dataToEdit, setDataToEdit] = useState<any>(null);
+  const [isOptimizerOpen, setIsOptimizerOpen] = useState<boolean>(false); // State for optimizer modal
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false); // Loading state for optimization API call
 
-  // --- Load Initial Plan Data ---
+  // --- Load Initial Plan Data & User Input ---
   useEffect(() => {
     setIsLoading(true);
     setError(null);
     setPlan(null);
+    setUserInput(null); // Reset user input
     setEditingSection(null);
     setDataToEdit(null);
+    setIsOptimizerOpen(false); // Ensure optimizer modal is closed on load
 
     console.log(`PlanDetail: useEffect running for planId: ${planId}`);
 
     if (!planId) {
-      console.error("PlanDetail: No Plan ID provided in the URL.");
       setError("No Plan ID provided in the URL.");
       setIsLoading(false);
       return;
     }
 
     const storedPlansString = localStorage.getItem('generatedPlans');
+    const storedUserInputString = localStorage.getItem('userInput'); // Load user input string
+
     console.log(`PlanDetail: Value from localStorage.getItem('generatedPlans'):`, storedPlansString ? storedPlansString.substring(0, 100) + '...' : storedPlansString);
+    console.log(`PlanDetail: Value from localStorage.getItem('userInput'):`, storedUserInputString ? storedUserInputString.substring(0, 100) + '...' : storedUserInputString);
+
+
+    if (!storedPlansString || !storedUserInputString) {
+        setError("Plan data or user input missing from storage.");
+        setIsLoading(false);
+        // Optionally navigate home: navigate('/');
+        return;
+    }
 
     try {
-      if (!storedPlansString) {
-        console.error("PlanDetail: No valid plan data string found in localStorage.");
-        throw new Error("No plans found in storage.");
-      }
-
       const storedPlans: BirthdayPlan[] = JSON.parse(storedPlansString);
-      console.log("PlanDetail: Successfully parsed plans from storage:", storedPlans);
+      const parsedUserInput: UserInput = JSON.parse(storedUserInputString); // Parse user input
+      console.log("PlanDetail: Successfully parsed plans and user input from storage.");
 
       const foundPlan = storedPlans.find(p => p.id === planId);
 
       if (foundPlan) {
         console.log("PlanDetail: Plan found:", foundPlan);
-        // Use the found plan directly, assuming it matches BirthdayPlan type
         setPlan(foundPlan);
+        setUserInput(parsedUserInput); // Set user input state
       } else {
         console.warn(`PlanDetail: Plan with ID ${planId} not found within the stored plans array.`);
         throw new Error(`Plan with ID ${planId} not found.`);
       }
     } catch (err: any) {
-      console.error("PlanDetail: Error loading plan:", err);
-      setError(err.message || "An error occurred while loading the plan.");
+      console.error("PlanDetail: Error loading plan or user input:", err);
+      setError(err.message || "An error occurred while loading data.");
     } finally {
       setIsLoading(false);
       console.log("PlanDetail: useEffect finished.");
     }
-  }, [planId]); // Dependency array ensures effect runs if planId changes
+  }, [planId]); // Rerun effect if planId changes
 
   // --- Modal Control Functions ---
   const handleEditClick = (section: keyof BirthdayPlan | string) => {
+    // ... (keep existing handleEditClick logic) ...
     if (!plan) return;
     let currentData: any;
-    // Ensure section is a valid key before accessing plan properties
     if (Object.prototype.hasOwnProperty.call(plan, section)) {
          currentData = plan[section as keyof BirthdayPlan];
     } else {
@@ -87,64 +102,134 @@ const PlanDetail: React.FC = () => {
     setDataToEdit(currentData);
     setEditingSection(section);
   };
-
   const handleCloseModal = () => {
     setEditingSection(null);
     setDataToEdit(null);
   };
-
-  // Saves changes from the modal
   const handleSaveChanges = (updatedData: any) => {
+    // ... (keep existing handleSaveChanges logic) ...
     if (!plan || !editingSection) return;
-
     const updatedPlan: BirthdayPlan = { ...plan, [editingSection]: updatedData };
-    setPlan(updatedPlan); // Optimistic UI update
-    setError(null); // Clear previous errors
-
+    setPlan(updatedPlan);
+    setError(null);
     try {
       const currentStoredPlansString = localStorage.getItem('generatedPlans');
       if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving.");
-
       const storedPlans: BirthdayPlan[] = JSON.parse(currentStoredPlansString);
       const planIndex = storedPlans.findIndex(p => p.id === planId);
-
       if (planIndex === -1) throw new Error(`Plan with ID ${planId} not found in storage during save attempt.`);
-
-      storedPlans[planIndex] = updatedPlan; // Replace the old plan with the updated one
+      storedPlans[planIndex] = updatedPlan;
       localStorage.setItem('generatedPlans', JSON.stringify(storedPlans));
       console.log("PlanDetail: Plan updated successfully in localStorage.");
-
     } catch (err: any) {
       console.error("PlanDetail: Error saving plan changes to localStorage:", err);
       setError("Failed to save changes. Please try again.");
-      // Consider reverting optimistic update: setPlan(plan);
     }
   };
 
-  // --- Helper to render list items (Handles string[] or string fallback) ---
-  const renderList = (items: string[] | string | undefined, title: string) => {
-      // console.log(`renderList called for: ${title}`, 'with items:', items); // Optional: Keep for debugging data structure issues
-      if (!items || (Array.isArray(items) && items.length === 0)) return null; // Hide if undefined or empty array
+  // --- Budget Optimizer Handlers ---
+  const handleOpenOptimizer = () => {
+      if (!plan || !userInput) {
+          setError("Cannot open optimizer: Plan or User Input data is missing.");
+          return;
+      }
+      setIsOptimizerOpen(true);
+  };
 
+  const handleCloseOptimizer = () => {
+      setIsOptimizerOpen(false);
+  };
+
+  /**
+   * Called when the optimizer component successfully returns an optimized plan.
+   * Updates the current plan state and saves to localStorage.
+   */
+  const handleBudgetOptimized = (optimizedPlanData: BirthdayPlan) => {
+      console.log("PlanDetail: Received optimized plan:", optimizedPlanData);
+      if (!plan) return; // Should have a plan if optimizer was opened
+
+      // Create a new plan object merging optimization summary if needed
+      // The API currently returns the full optimized plan object in { optimizedPlan: ... }
+      const updatedPlan = { ...optimizedPlanData }; // Assuming optimizedPlanData is the full plan
+
+      setPlan(updatedPlan); // Update state with the optimized plan
+      setError(null); // Clear previous errors
+
+      // Save the updated plan list back to localStorage
+      try {
+          const currentStoredPlansString = localStorage.getItem('generatedPlans');
+          if (!currentStoredPlansString) throw new Error("Failed to retrieve plans from storage for saving optimized plan.");
+
+          const storedPlans: BirthdayPlan[] = JSON.parse(currentStoredPlansString);
+          const planIndex = storedPlans.findIndex(p => p.id === planId); // Use original planId
+
+          if (planIndex === -1) throw new Error(`Original plan with ID ${planId} not found in storage during optimized save.`);
+
+          storedPlans[planIndex] = updatedPlan; // Replace with the optimized version
+          localStorage.setItem('generatedPlans', JSON.stringify(storedPlans));
+          console.log("PlanDetail: Optimized plan updated successfully in localStorage.");
+
+      } catch (err: any) {
+          console.error("PlanDetail: Error saving optimized plan changes to localStorage:", err);
+          setError("Failed to save optimized changes. Please try again.");
+          // Consider reverting state if save fails? setPlan(plan);
+      }
+
+      setIsOptimizerOpen(false); // Close the optimizer modal
+  };
+
+   /**
+    * Handles the actual API call triggered from the optimizer modal/component.
+    * This function would likely be passed down to the optimizer component.
+    */
+   const runBudgetOptimization = async (priorities: BudgetPriorities) => {
+        if (!plan || !userInput) {
+            setError("Missing plan or user input data for optimization.");
+            return;
+        }
+        setIsOptimizing(true);
+        setError(null);
+        try {
+            console.log("PlanDetail: Running budget optimization with priorities:", priorities);
+            const response = await optimizeBudget(
+                plan, // The current plan to optimize
+                priorities,
+                userInput.budgetAmount, // Original budget target
+                userInput.currency // Original currency
+            );
+            // Assuming response = { optimizedPlan: BirthdayPlan }
+            if (response && response.optimizedPlan) {
+                handleBudgetOptimized(response.optimizedPlan); // Update state with the result
+            } else {
+                 throw new Error("Invalid response received from budget optimization API.");
+            }
+        } catch (err: any) {
+             console.error("PlanDetail: Error during budget optimization API call:", err);
+             setError(`Budget optimization failed: ${err.message || 'Unknown error'}`);
+             // Keep the modal open for the user to see the error? Or close it?
+             // setIsOptimizerOpen(false);
+        } finally {
+            setIsOptimizing(false);
+        }
+   };
+
+
+  // --- Helper to render list items ---
+  const renderList = (items: string[] | string | undefined, title: string) => {
+    // ... (keep existing renderList logic) ...
+      if (!items || (Array.isArray(items) && items.length === 0)) return null;
       let listItems: React.ReactNode;
       if (Array.isArray(items)) {
-          listItems = items.map((item, index) => <li key={index}>{item || 'N/A'}</li>);
+          listItems = items.filter(item => item).map((item, index) => <li key={index}>{item}</li>);
+          if (listItems.length === 0) return null;
       } else if (typeof items === 'string' && items.trim() !== '') {
           console.warn(`renderList Warning: Expected an array for '${title}', but received a string: "${items}". Rendering as single item.`);
           listItems = <li>{items}</li>;
       } else {
-           console.warn(`renderList Warning: Expected an array for '${title}', but received type '${typeof items}'. Value:`, items);
+           console.warn(`renderList Warning: Expected an array or string for '${title}', but received type '${typeof items}'. Value:`, items);
            return null;
       }
-
-      return (
-          <>
-              <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4>
-              <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-gray-600">
-                  {listItems}
-              </ul>
-          </>
-      );
+      return ( <> <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">{title}</h4> <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-gray-600">{listItems}</ul> </> );
   }
 
 
@@ -155,36 +240,50 @@ const PlanDetail: React.FC = () => {
   if (!plan) return null;
 
   return (
-    // Added relative positioning for the absolute back button
     <div className="container mx-auto p-4 md:p-8 max-w-4xl font-inter relative">
       {displayError}
 
-      {/* Back Button Added Here */}
-       <button
-            onClick={() => navigate('/results')} // Navigate back to the results page
-            // Style the button: gray background, rounded, padding, hover effect, positioned top-left
-            className="absolute top-4 left-4 mb-4 px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out"
-            aria-label="Back to results"
-        >
-            &larr; Back to Results {/* Left arrow entity */}
+       {/* Back Button */}
+       <button onClick={() => navigate('/results')} className="absolute top-4 left-4 mb-4 px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out z-10" aria-label="Back to results">
+            &larr; Back to Results
        </button>
 
+       {/* Optimize Budget Button Added Here */}
+       <button
+            onClick={handleOpenOptimizer}
+            className="absolute top-4 right-4 mb-4 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition duration-150 ease-in-out z-10"
+            aria-label="Optimize Budget"
+            disabled={!userInput} // Disable if userInput hasn't loaded
+        >
+           Optimize Budget {/* Maybe add an icon later */}
+       </button>
+
+
       {/* Plan Name & Profile */}
-      {/* Added pt-16 to give space below the absolute positioned back button */}
-      <div className="flex justify-between items-start mb-6 pb-2 border-b border-gray-300 pt-16">
-        <div>
+      <div className="flex justify-between items-start mb-6 pb-2 border-b border-gray-300 pt-16"> {/* Keep pt-16 */}
+        {/* ... (keep existing name/profile display) ... */}
+         <div>
             <h1 className="text-3xl font-bold">{plan.name ?? 'Unnamed Plan'}</h1>
             {plan.profile && <p className="text-sm text-gray-500 mt-1">Profile: {plan.profile}</p>}
         </div>
-        {/* Ensure 'name' is a valid key before allowing edit */}
         {Object.prototype.hasOwnProperty.call(plan, 'name') && (
              <button onClick={() => handleEditClick('name')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex-shrink-0 mt-1">Edit Name</button>
         )}
       </div>
 
+      {/* Optimization Summary (Display if present) */}
+      {plan.optimizationSummary && (
+           <section className="mb-6 p-4 border border-green-200 rounded-lg shadow-sm bg-green-50">
+               <h2 className="text-xl font-semibold text-green-800 mb-2">Optimization Summary</h2>
+               <p className="text-green-700 whitespace-pre-wrap">{plan.optimizationSummary}</p>
+           </section>
+      )}
+
+
       {/* Description Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-        <div className="flex justify-between items-center mb-3">
+         {/* ... (keep existing description display) ... */}
+         <div className="flex justify-between items-center mb-3">
           <h2 className="text-xl font-semibold text-gray-700">Description</h2>
            {Object.prototype.hasOwnProperty.call(plan, 'description') && (
                <button onClick={() => handleEditClick('description')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
@@ -194,131 +293,65 @@ const PlanDetail: React.FC = () => {
       </section>
 
       {/* Date Section */}
-      {/* Conditionally render date section only if plan.date exists */}
       {plan.date && (
             <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-               <div className="flex justify-between items-center mb-3">
+               {/* ... (keep existing date display) ... */}
+                <div className="flex justify-between items-center mb-3">
                  <h2 className="text-xl font-semibold text-gray-700">Date</h2>
                  {Object.prototype.hasOwnProperty.call(plan, 'date') && (
                     <button onClick={() => handleEditClick('date')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
                  )}
                </div>
-               <p className="text-gray-600">
-                  { (() => {
-                      try {
-                          // Attempt to format date, provide fallback for invalid dates
-                          const dateObj = new Date(plan.date);
-                          if (isNaN(dateObj.getTime())) return 'Invalid date format';
-                          return dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-                      } catch (e) {
-                          return 'Invalid date';
-                      }
-                  })() }
-               </p>
+               <p className="text-gray-600"> { (() => { try { const dateObj = new Date(plan.date); if (isNaN(dateObj.getTime())) return 'Invalid date format'; return dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }); } catch (e) { console.error("Error formatting date:", e); return 'Invalid date'; } })() } </p>
             </section>
        )}
 
 
       {/* Venue Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-         <div className="flex justify-between items-center mb-3">
+         {/* ... (keep existing venue display) ... */}
+          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Venue</h2>
             {Object.prototype.hasOwnProperty.call(plan, 'venue') && (
                <button onClick={() => handleEditClick('venue')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
             )}
          </div>
-         {/* Use optional chaining and nullish coalescing for safer access */}
-         {plan.venue ? (
-             <div className="space-y-2 text-gray-600">
-                <p><span className="font-medium text-gray-800">Name:</span> {plan.venue.name ?? 'N/A'}</p>
-                <p><span className="font-medium text-gray-800">Description:</span> {plan.venue.description ?? 'N/A'}</p>
-                <p><span className="font-medium text-gray-800">Cost Range:</span> {plan.venue.costRange ?? 'N/A'}</p>
-                <p><span className="font-medium text-gray-800">Suitability:</span> {plan.venue.suitability ?? 'N/A'}</p>
-                {renderList(plan.venue.amenities, 'Amenities')}
-                {/* {renderList(plan.venue.venueSearchSuggestions, 'Search Suggestions')} */}
-             </div>
-         ) : (
-            <p className="text-gray-500 italic">No venue details specified.</p>
-         )}
+         {plan.venue ? ( <div className="space-y-2 text-gray-600"> <p><span className="font-medium text-gray-800">Name:</span> {plan.venue.name ?? 'N/A'}</p> <p><span className="font-medium text-gray-800">Description:</span> {plan.venue.description ?? 'N/A'}</p> <p><span className="font-medium text-gray-800">Cost Range:</span> {plan.venue.costRange ?? 'N/A'}</p> <p><span className="font-medium text-gray-800">Suitability:</span> {plan.venue.suitability ?? 'N/A'}</p> {renderList(plan.venue.amenities, 'Amenities')} </div> ) : ( <p className="text-gray-500 italic">No venue details specified.</p> )}
       </section>
 
       {/* Schedule Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-         <div className="flex justify-between items-center mb-3">
+         {/* ... (keep existing schedule display) ... */}
+          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Schedule</h2>
             {Object.prototype.hasOwnProperty.call(plan, 'schedule') && (
                <button onClick={() => handleEditClick('schedule')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
             )}
          </div>
-         {plan.schedule && plan.schedule.length > 0 ? (
-            <ul className="list-disc pl-5 space-y-2">
-              {plan.schedule.map((item, index) => (
-                item && item.time && item.activity ? ( // Check item validity
-                    <li key={index} className="text-gray-600">
-                      <span className="font-medium text-gray-800">{item.time}:</span> {item.activity}
-                      {item.details && <span className="text-sm italic ml-2">({item.details})</span>}
-                    </li>
-                ) : null
-              ))}
-            </ul>
-         ) : (
-            <p className="text-gray-500 italic">No schedule items added yet.</p>
-         )}
+         {plan.schedule && plan.schedule.length > 0 ? ( <ul className="list-disc pl-5 space-y-2"> {plan.schedule.map((item, index) => ( item && typeof item === 'object' && item.time && item.activity ? ( <li key={index} className="text-gray-600"> <span className="font-medium text-gray-800">{item.time}:</span> {item.activity} {item.details && <span className="text-sm italic ml-2">({item.details})</span>} </li> ) : null ))} </ul> ) : ( <p className="text-gray-500 italic">No schedule items added yet.</p> )}
       </section>
 
       {/* Catering Section */}
       <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-         <div className="flex justify-between items-center mb-3">
+         {/* ... (keep existing catering display) ... */}
+          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Catering</h2>
             {Object.prototype.hasOwnProperty.call(plan, 'catering') && (
                 <button onClick={() => handleEditClick('catering')} className="ml-4 px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Edit</button>
             )}
          </div>
-         {plan.catering ? (
-             <div className="space-y-2 text-gray-600">
-                 <p><span className="font-medium text-gray-800">Estimated Cost:</span> {plan.catering.estimatedCost ?? 'N/A'}</p>
-                 <p><span className="font-medium text-gray-800">Serving Style:</span> {plan.catering.servingStyle ?? 'N/A'}</p>
-                 {plan.catering.menu ? ( // Check if menu object exists
-                     <div className="mt-3 pt-3 border-t border-gray-200">
-                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Menu</h3>
-                         {renderList(plan.catering.menu.appetizers, 'Appetizers')}
-                         {renderList(plan.catering.menu.mainCourses, 'Main Courses')}
-                         {plan.catering.menu.desserts ? ( // Check if desserts string exists
-                             <>
-                                <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">Desserts</h4>
-                                <p className="text-sm text-gray-600 pl-2">{plan.catering.menu.desserts}</p>
-                             </>
-                         ) : null}
-                         {renderList(plan.catering.menu.beverages, 'Beverages')}
-                     </div>
-                 ) : <p className="text-gray-500 italic mt-2">No menu details specified.</p>}
-                 {/* {renderList(plan.catering.cateringSearchSuggestions, 'Search Suggestions')} */}
-             </div>
-         ) : (
-            <p className="text-gray-500 italic">No catering details specified.</p>
-         )}
+         {plan.catering ? ( <div className="space-y-2 text-gray-600"> <p><span className="font-medium text-gray-800">Estimated Cost:</span> {plan.catering.estimatedCost ?? 'N/A'}</p> <p><span className="font-medium text-gray-800">Serving Style:</span> {plan.catering.servingStyle ?? 'N/A'}</p> {plan.catering.menu ? ( <div className="mt-3 pt-3 border-t border-gray-200"> <h3 className="text-lg font-semibold mb-2 text-gray-800">Menu</h3> {renderList(plan.catering.menu.appetizers, 'Appetizers')} {renderList(plan.catering.menu.mainCourses, 'Main Courses')} {plan.catering.menu.desserts ? ( <> <h4 className="text-md font-semibold mt-3 mb-1 text-gray-700">Desserts</h4> <p className="text-sm text-gray-600 pl-2">{typeof plan.catering.menu.desserts === 'string' ? plan.catering.menu.desserts : 'N/A'}</p> </> ) : null} {renderList(plan.catering.menu.beverages, 'Beverages')} </div> ) : <p className="text-gray-500 italic mt-2">No menu details specified.</p>} </div> ) : ( <p className="text-gray-500 italic">No catering details specified.</p> )}
       </section>
 
       {/* Guest Engagement Section */}
        <section className="mb-6 p-4 border border-gray-200 rounded-lg shadow-sm bg-white">
-         <div className="flex justify-between items-center mb-3">
+         {/* ... (keep existing guest engagement display) ... */}
+          <div className="flex justify-between items-center mb-3">
            <h2 className="text-xl font-semibold text-gray-700">Guest Engagement</h2>
            {/* No edit button for guest engagement yet */}
          </div>
-         {plan.guestEngagement ? (
-             <div className="space-y-2 text-gray-600">
-                 {renderList(plan.guestEngagement.icebreakers, 'Icebreakers')}
-                 {renderList(plan.guestEngagement.interactiveElements, 'Interactive Elements')}
-                 {renderList(plan.guestEngagement.photoOpportunities, 'Photo Opportunities')}
-                 {renderList(plan.guestEngagement.partyFavors, 'Party Favors')}
-                 {renderList(plan.guestEngagement.techIntegration, 'Tech Integration')}
-                 {/* {renderList(plan.guestEngagement.entertainmentSearchSuggestions, 'Search Suggestions')} */}
-             </div>
-         ) : (
-            <p className="text-gray-500 italic">No guest engagement details specified.</p>
-         )}
+         {plan.guestEngagement ? ( <div className="space-y-2 text-gray-600"> {renderList(plan.guestEngagement.icebreakers, 'Icebreakers')} {renderList(plan.guestEngagement.interactiveElements, 'Interactive Elements')} {renderList(plan.guestEngagement.photoOpportunities, 'Photo Opportunities')} {renderList(plan.guestEngagement.partyFavors, 'Party Favors')} {renderList(plan.guestEngagement.techIntegration, 'Tech Integration')} </div> ) : ( <p className="text-gray-500 italic">No guest engagement details specified.</p> )}
       </section>
-
 
       {/* Render Edit Modal */}
       <EditPlanSectionModal
@@ -328,6 +361,42 @@ const PlanDetail: React.FC = () => {
         currentData={dataToEdit}
         onSave={handleSaveChanges}
       />
+
+      {/* Render Budget Optimizer Modal (Placeholder) */}
+      {/*
+      <BudgetOptimizerModal
+          isOpen={isOptimizerOpen}
+          onClose={handleCloseOptimizer}
+          currentPlan={plan}
+          userInput={userInput}
+          onOptimize={runBudgetOptimization} // Pass the function to run optimization
+          isOptimizing={isOptimizing} // Pass loading state
+      />
+      */}
+       {/* Temporary message while component is missing */}
+       {isOptimizerOpen && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+               <div className="bg-white p-6 rounded-lg shadow-xl">
+                   <h3 className="text-lg font-medium mb-4">Budget Optimizer</h3>
+                   <p className="text-sm text-gray-600 mb-4">Budget Optimizer component/modal needs to be created/integrated here.</p>
+                   <p className="text-xs text-gray-500 mb-4">Requires inputs for priorities (Venue, Food, etc.) and triggers the API call.</p>
+                    {/* Display loading state */}
+                    {isOptimizing && <p className="text-blue-600">Optimizing...</p>}
+                    {/* Display error state within modal */}
+                    {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+                   <button onClick={handleCloseOptimizer} className="mt-4 px-4 py-2 bg-gray-200 rounded-md text-sm">Close</button>
+                   {/* Placeholder button to test API call logic */}
+                   {/* <button
+                        onClick={() => runBudgetOptimization({ venue: 3, food: 4, activities: 5, decorations: 2, partyFavors: 1 })}
+                        className="mt-4 ml-2 px-4 py-2 bg-purple-600 text-white rounded-md text-sm"
+                        disabled={isOptimizing}
+                   >
+                       Test Optimize API (Dummy Priorities)
+                   </button> */}
+               </div>
+           </div>
+       )}
+
 
     </div>
   );
