@@ -32,81 +32,81 @@ export default function Home() {
 			console.log("Home: Initiating parallel API calls for 3 profiles...");
 
 			// Create an array of promises, one for each profile
+            // Wrap the result/error with profile info for easier processing after Promise.allSettled
 			const promises = PROFILES.map(profile =>
-				generateBirthdayPlans(data, profile) // Call API util with userInput and profile
-					.then(response => ({ status: 'fulfilled', value: response, profile })) // Wrap success
-					.catch(error => ({ status: 'rejected', reason: error, profile })) // Wrap failure
+				generateBirthdayPlans(data, profile)
+					.then(response => ({ status: 'fulfilled' as const, value: response, profile })) // Wrap success response
+					.catch(error => ({ status: 'rejected' as const, reason: error, profile })) // Wrap error
 			);
 
-            // Use Promise.allSettled to wait for all promises, regardless of success/failure
-            // Note: Changed from Promise.allSettled back to individual try/catch within map if needed,
-            // but Promise.allSettled is generally cleaner if API function handles throws correctly.
-            // Let's stick with Promise.allSettled for now.
-			const results = await Promise.allSettled(promises); // This waits for all calls
+			// Use Promise.allSettled to wait for all promises
+			const results = await Promise.allSettled(promises);
 
 			console.log("Home: Received responses from parallel calls:", results);
 
 			const finalPlans: BirthdayPlan[] = [];
 			const errors: string[] = [];
 
-			// Process results
-			results.forEach((result, index) => {
-				const profile = PROFILES[index]; // Get corresponding profile
-				if (result.status === 'fulfilled') {
-					// Check if the response structure is valid and contains the plan
-                    // The backend now returns { plans: [singlePlan] }
-					if (result.value && Array.isArray(result.value.plans) && result.value.plans.length === 1 && result.value.plans[0]) {
-						console.log(`Home: Successfully received plan for profile: ${profile}`);
-						finalPlans.push(result.value.plans[0]); // Add the single plan object
+			// Process results from Promise.allSettled
+			results.forEach((settledResult, index) => {
+                // Note: The 'profile' is available directly on settledResult.value or settledResult.reason
+                // because we added it in the .then()/.catch() above.
+                // The result from Promise.allSettled itself also has status and value/reason.
+
+				if (settledResult.status === 'fulfilled') {
+                    // Access the actual API response wrapped in our .then()
+                    const apiResponse = settledResult.value.value; // Access the 'value' from our wrapper
+                    const profile = settledResult.value.profile; // Access the 'profile' from our wrapper
+
+					// Check if the API response structure is valid and contains the plan
+                    // The backend returns { plans: [singlePlan] }
+					if (apiResponse && Array.isArray(apiResponse.plans) && apiResponse.plans.length === 1 && apiResponse.plans[0]) {
+						console.log(`Home: Successfully received and validated plan for profile: ${profile}`);
+						finalPlans.push(apiResponse.plans[0]); // Add the single plan object
 					} else {
-						console.warn(`Home: Received invalid response structure for profile ${profile}:`, result.value);
-						errors.push(`Failed to generate plan for ${profile} profile (invalid structure).`);
+                        // This case means the backend returned 200 but the structure was wrong (shouldn't happen with validation)
+						console.warn(`Home: Received unexpected structure from backend for profile ${profile}:`, apiResponse);
+						errors.push(`Received invalid plan structure for ${profile} profile.`);
 					}
 				} else {
-					// Handle rejected promises (API call failed)
-					console.error(`Home: API call failed for profile ${profile}:`, result.reason);
-                    // Extract a user-friendly message if possible
-                    const errorMessage = result.reason instanceof Error ? result.reason.message : 'Unknown error';
+					// Handle rejected promises (API call failed or backend threw error)
+                    const profile = PROFILES[index]; // Get profile based on original order
+					console.error(`Home: API call failed for profile ${profile}:`, settledResult.reason);
+                    const errorMessage = settledResult.reason instanceof Error ? settledResult.reason.message : 'Unknown error';
 					errors.push(`Failed to generate plan for ${profile} profile: ${errorMessage}`);
 				}
 			});
 
 			// Check if we got at least one plan
 			if (finalPlans.length === 0) {
-				// If all calls failed, throw a consolidated error
 				throw new Error(`Failed to generate any plans. Errors: ${errors.join('; ')}`);
 			}
 
-            // Log a warning if some plans failed but not all
             if (errors.length > 0) {
                  console.warn(`Home: Some plan profiles failed to generate. Errors: ${errors.join('; ')}`);
-                 // Optionally set a non-critical error message for the user
-                 // setError(`Could not generate all plan types, but here are the successful ones. Issues: ${errors.join('; ')}`);
             }
 
-			// Sort plans to maintain consistent order (optional, but good practice)
+			// Sort plans to maintain consistent order
 			finalPlans.sort((a, b) => {
 				const profileOrder: Record<PlanProfile, number> = { 'DIY/Budget': 1, 'Premium/Convenience': 2, 'Unique/Adventure': 3 };
+                // Use 'as PlanProfile' for type safety if needed, ensure profile exists
 				return (profileOrder[a.profile as PlanProfile] || 4) - (profileOrder[b.profile as PlanProfile] || 4);
 			});
 
-			// Save the successfully generated plans (even if fewer than 3)
+			// Save the successfully generated plans
 			localStorage.setItem('generatedPlans', JSON.stringify(finalPlans));
 			localStorage.setItem('userInput', JSON.stringify(data));
 			console.log(`Home: ${finalPlans.length} plan(s) generated and saved to localStorage.`);
 
-			// Navigate to results page
 			navigate('/results');
 
 		} catch (err) {
-			// Catch errors from Promise.allSettled processing or the final check
 			console.error('Home: Overall error generating plans:', err);
 			setError(`Failed to generate plans. ${err instanceof Error ? err.message : 'Please try again.'}`);
-			// Clear potentially incomplete data
 			localStorage.removeItem('generatedPlans');
 			localStorage.removeItem('userInput');
 		} finally {
-			setIsLoading(false); // Hide loading state
+			setIsLoading(false);
 		}
 	};
 
@@ -125,7 +125,6 @@ export default function Home() {
 
 				<UserInputForm onSubmit={handleSubmit} isLoading={isLoading} />
 
-				{/* Display error message if one occurred */}
 				{error && (
 					<div className="mt-8 max-w-2xl mx-auto p-4 bg-red-100 text-red-700 border border-red-300 rounded-md shadow text-center text-sm">
 						{error}
