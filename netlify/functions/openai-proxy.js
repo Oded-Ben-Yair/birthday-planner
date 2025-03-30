@@ -10,7 +10,6 @@ const extractAndParseJson = (jsonString) => {
     // ... (Keep the enhanced extractAndParseJson function) ...
     if (!jsonString || typeof jsonString !== 'string') { console.error('extractAndParseJson: Input invalid.'); return null; }
     let potentialJson = jsonString.trim();
-    // No need to strip ```json anymore as args should be clean JSON string
     const cleanJsonString = (str) => { try { return str.replace(/,\s*([}\]])/g, '$1'); } catch (e) { console.warn("Regex cleaning failed..."); return str; }};
     const tryParse = (str) => { const cleanedStr = cleanJsonString(str); return JSON.parse(cleanedStr); };
     try { const parsed = tryParse(potentialJson); console.log("Parsing successful (Function Args)."); return parsed; }
@@ -129,7 +128,6 @@ export const handler = async (event) => {
             const planId = profile === 'DIY/Budget' ? 'plan-1' : (profile === 'Premium/Convenience' ? 'plan-2' : 'plan-3');
 
             // --- Define Prompt Instructing AI to Call the Function ---
-            // Keep RCC structure but remove JSON format instructions, focus on calling the function
             const systemPrompt_GeneratePlans_FunctionCall = `You are PartyPilot, an AI-powered birthday planning assistant.
 
 ### CONSTITUTIONAL PRINCIPLES
@@ -157,10 +155,16 @@ You are in the **PLAN GENERATION** phase.
 ### TASK & INSTRUCTIONS:
 1.  **Generate ONE Detailed Plan:** Create **ONE** high-quality, detailed plan based on the **USER INPUT SUMMARY** specifically for the **"${requestedProfile}"** profile (ID should be "${planId}").
 2.  **Use Knowledge:** Use your knowledge base for specific, realistic suggestions for **"${userInput.location.city}, ${userInput.location.country}"** fitting the theme, budget, age, and profile.
-3.  **Call Function (CRITICAL):** After generating the plan details, you **MUST** call the provided 'save_birthday_plan' function. Pass all the generated plan details as arguments according to the function's parameter schema. Do not omit required fields.`;
+3.  **Call Function (CRITICAL):** After generating the plan details, you **MUST** call the provided 'save_birthday_plan' function.
+4.  **Schema Adherence (VERY IMPORTANT):** The arguments you pass to the 'save_birthday_plan' function **MUST strictly follow the function's parameter schema**.
+    * Ensure **ALL required fields** defined in the schema are present (e.g., venue.name, venue.description, venue.costRange, venue.amenities, venue.suitability, catering.estimatedCost, catering.servingStyle, catering.menu, guestEngagement.icebreakers, etc.).
+    * Ensure field names **exactly match** the schema (e.g., use 'amenities', not 'features'; use 'servingStyle', not 'service'; use 'desserts' (string) inside 'menu', not 'dessert').
+    * Ensure data types match (e.g., 'amenities' MUST be an array of strings, 'desserts' MUST be a single string).
+    * Do **NOT** include extra fields that are not defined in the schema (e.g., venue.location, catering.service, guestEngagement.activities).
+    * Double-check the structure, especially for nested objects like 'venue', 'catering', 'menu', and 'guestEngagement'.`;
 
             // User prompt is simpler, focusing on the request
-            const userPrompt_GeneratePlans = `Generate ONE detailed birthday plan for the "${requestedProfile}" profile based on my input summary, and then call the 'save_birthday_plan' function with the plan details.`;
+            const userPrompt_GeneratePlans = `Generate ONE detailed birthday plan for the "${requestedProfile}" profile based on my input summary, adhering strictly to all instructions, and then call the 'save_birthday_plan' function with the plan details conforming exactly to the function schema.`;
 
             console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Function Calling, Profile: ${requestedProfile})...`);
             const completion = await openai.chat.completions.create({
@@ -169,12 +173,10 @@ You are in the **PLAN GENERATION** phase.
                     { role: 'system', content: systemPrompt_GeneratePlans_FunctionCall },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                // ** Add tools and tool_choice **
                 tools: [savePlanToolSchema],
                 tool_choice: { type: "function", function: { name: "save_birthday_plan" } }, // Force calling our function
-                max_tokens: 2500, // Keep reasonably high
-                temperature: 0.6,
-                // ** Remove response_format **
+                max_tokens: 3000, // Adjusted token limit
+                temperature: 0.5, // Slightly lower temp for potentially better schema adherence
             });
 
             const message = completion.choices[0]?.message;
@@ -191,22 +193,39 @@ You are in the **PLAN GENERATION** phase.
                     throw new Error("Failed to parse function arguments returned by AI.");
                 }
 
-                // ** Strict Validation (Optional but Recommended) **
-                // Since function calling *should* enforce schema, we can add back stricter checks here
-                // This ensures the object truly matches our BirthdayPlan type before sending to frontend
-                if (
+                // --- Reinstated Strict Validation ---
+                // Check if the parsed object matches the expected structure and profile/id
+                 if (
                     typeof planObject !== 'object' || planObject === null ||
-                    planObject.id !== planId || // Check ID
-                    planObject.profile !== requestedProfile || // Check Profile
-                    !planObject.name || !planObject.description || // Check basic fields
-                    !planObject.venue || typeof planObject.venue !== 'object' || !planObject.venue.name || !Array.isArray(planObject.venue.amenities) || // Check venue structure
-                    !planObject.schedule || !Array.isArray(planObject.schedule) || // Check schedule
-                    !planObject.catering || typeof planObject.catering !== 'object' || !planObject.catering.menu || typeof planObject.catering.menu.desserts !== 'string' || // Check catering structure
-                    !planObject.guestEngagement || typeof planObject.guestEngagement !== 'object' // Check engagement structure
-                    // Add more checks based on required fields in savePlanToolSchema.function.parameters.required
+                    planObject.id !== planId ||
+                    planObject.profile !== requestedProfile ||
+                    !planObject.name || typeof planObject.name !== 'string' ||
+                    !planObject.description || typeof planObject.description !== 'string' ||
+                    !planObject.venue || typeof planObject.venue !== 'object' ||
+                        !planObject.venue.name || typeof planObject.venue.name !== 'string' ||
+                        !planObject.venue.description || typeof planObject.venue.description !== 'string' ||
+                        !planObject.venue.costRange || typeof planObject.venue.costRange !== 'string' ||
+                        !Array.isArray(planObject.venue.amenities) ||
+                        !planObject.venue.suitability || typeof planObject.venue.suitability !== 'string' ||
+                    !planObject.schedule || !Array.isArray(planObject.schedule) || planObject.schedule.length < 1 ||
+                    !planObject.catering || typeof planObject.catering !== 'object' ||
+                        !planObject.catering.estimatedCost || typeof planObject.catering.estimatedCost !== 'string' ||
+                        !planObject.catering.servingStyle || typeof planObject.catering.servingStyle !== 'string' ||
+                        !planObject.catering.menu || typeof planObject.catering.menu !== 'object' ||
+                        !Array.isArray(planObject.catering.menu.appetizers) ||
+                        !Array.isArray(planObject.catering.menu.mainCourses) ||
+                        typeof planObject.catering.menu.desserts !== 'string' || // Check type explicitly
+                        !Array.isArray(planObject.catering.menu.beverages) ||
+                    !planObject.guestEngagement || typeof planObject.guestEngagement !== 'object' ||
+                        !Array.isArray(planObject.guestEngagement.icebreakers) ||
+                        !Array.isArray(planObject.guestEngagement.interactiveElements) ||
+                        !Array.isArray(planObject.guestEngagement.photoOpportunities) ||
+                        !Array.isArray(planObject.guestEngagement.partyFavors)
+                    // NOTE: Add checks for all 'required' fields defined in the schema if needed
                 ) {
-                     console.error("Validation failed for function call arguments. Parsed Object:", planObject);
-                     throw new Error("AI function call arguments do not match the required BirthdayPlan structure.");
+                     console.error("Strict validation failed for function call arguments. Parsed Object:", planObject);
+                     // Optionally log specific missing fields or type mismatches here
+                     throw new Error(`AI function call arguments do not match the required BirthdayPlan structure/schema for profile ${requestedProfile}.`);
                 }
 
 
@@ -225,7 +244,7 @@ You are in the **PLAN GENERATION** phase.
         // ==================================================================
         } else if (action === 'generateInvitation') {
             // ... (Keep existing generateInvitation logic) ...
-             const { plan, template, date, time } = otherData; // Use otherData now
+             const { plan, template, date, time } = otherData;
              if (!plan || typeof plan !== 'object' || !template || !date || !time) { throw new Error("Missing data for generateInvitation action."); }
              const birthdayPersonName = plan.name ? plan.name.split("'s")[0] : "the birthday person";
              const messagesForInviteText = [ { role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` } ];
@@ -241,13 +260,12 @@ You are in the **PLAN GENERATION** phase.
 
         } else if (action === 'optimizeBudget') {
             // ... (Keep existing optimizeBudget logic) ...
-             const { plan, priorities, numericBudget, currency } = otherData; // Use otherData now
+             const { plan, priorities, numericBudget, currency } = otherData;
              if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) { throw new Error("Missing required data for optimizeBudget action."); }
              const systemPrompt_OptimizeBudget = `You are a budget optimization expert...`;
              const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
              const messagesForOptimize = [ { role: 'system', content: systemPrompt_OptimizeBudget }, { role: 'user', content: userPrompt_OptimizeBudget } ];
              console.log("Calling OpenAI (gpt-4o) for optimizeBudget...");
-             // Maybe use function calling here too eventually for structured output
              const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, max_tokens: 4000 });
              const content = completion.choices[0]?.message?.content;
              if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
