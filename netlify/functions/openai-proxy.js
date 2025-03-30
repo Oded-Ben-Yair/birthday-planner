@@ -13,37 +13,69 @@
      * @returns {object | array | null} The parsed JSON object/array, or null if parsing fails.
      */
     const extractAndParseJson = (jsonString) => {
-    	if (!jsonString || typeof jsonString !== 'string') { /* ... */ return null; }
-    	const cleanJsonString = (str) => {
-            try { return str.replace(/,\s*([}\]])/g, '$1'); }
-            catch (e) { console.warn("Regex cleaning failed..."); return str; }
-        };
-    	const tryParse = (str) => { const cleanedStr = cleanJsonString(str); return JSON.parse(cleanedStr); };
-    	try { return tryParse(jsonString); }
-        catch (directParseError) {
-            console.warn(`Direct JSON parsing failed (even after cleaning): ${directParseError.message}. Attempting extraction...`);
-            const firstBracket = jsonString.indexOf('{'); const firstSquare = jsonString.indexOf('[');
-            let startIndex = -1;
-            if (firstBracket === -1 && firstSquare === -1) { /* ... error log ... */ return null; }
-            startIndex = (firstBracket === -1) ? firstSquare : (firstSquare === -1 ? firstBracket : Math.min(firstBracket, firstSquare));
-            const isObject = jsonString[startIndex] === '{';
-            const lastBracket = isObject ? jsonString.lastIndexOf('}') : jsonString.lastIndexOf(']');
-            if (lastBracket === -1 || lastBracket < startIndex) { /* ... error log ... */ return null; }
-            const potentialJson = jsonString.substring(startIndex, lastBracket + 1);
-            try { const parsedJson = tryParse(potentialJson); console.log('Successfully parsed extracted & cleaned JSON.'); return parsedJson; }
-            catch (extractionParseError) { /* ... error log ... */ return null; }
+    	if (!jsonString || typeof jsonString !== 'string') {
+            console.error('extractAndParseJson: Input is not a valid string.', jsonString);
+            return null;
         }
+    	const cleanJsonString = (str) => {
+            try {
+                // Remove trailing commas before closing braces/brackets
+                let cleaned = str.replace(/,\s*([}\]])/g, '$1');
+                return cleaned;
+            } catch (e) {
+                 console.warn("Regex cleaning failed, using original string.", e);
+                 return str;
+            }
+    	};
+    	const tryParse = (str) => {
+    		const cleanedStr = cleanJsonString(str);
+    		return JSON.parse(cleanedStr);
+    	};
+    	try {
+    		// Attempt parsing the potentially cleaned original string first
+    		return tryParse(jsonString);
+    	} catch (directParseError) {
+    		console.warn(`Direct JSON parsing failed (even after cleaning): ${directParseError.message}. Attempting extraction...`);
+    		// --- Extraction Logic (if direct parse fails) ---
+    		const firstBracket = jsonString.indexOf('{');
+    		const firstSquare = jsonString.indexOf('[');
+    		let startIndex = -1;
+    		if (firstBracket === -1 && firstSquare === -1) {
+    			console.error('extractAndParseJson: No JSON object or array structure found.');
+    			console.error('Original string:', jsonString);
+    			return null;
+    		}
+    		startIndex = (firstBracket === -1) ? firstSquare : (firstSquare === -1 ? firstBracket : Math.min(firstBracket, firstSquare));
+    		const isObject = jsonString[startIndex] === '{';
+    		const lastBracket = isObject ? jsonString.lastIndexOf('}') : jsonString.lastIndexOf(']');
+    		if (lastBracket === -1 || lastBracket < startIndex) {
+    			console.error('extractAndParseJson: Could not find matching closing bracket.');
+    			console.error('Original string:', jsonString);
+    			return null;
+    		}
+    		const potentialJson = jsonString.substring(startIndex, lastBracket + 1);
+    		try {
+    			const parsedJson = tryParse(potentialJson);
+    			console.log('Successfully parsed extracted & cleaned JSON.');
+    			return parsedJson;
+    		} catch (extractionParseError) {
+    			console.error(`extractAndParseJson: Failed to parse extracted & cleaned JSON substring: ${extractionParseError.message}`);
+    			console.error('Original string that failed parsing:', jsonString); // Log the problematic string
+    			return null; // Return null if all attempts fail
+    		}
+    	}
     };
+
 
     // Define the handler function for Netlify
     export const handler = async (event) => {
     	// CORS Headers
     	const allowedOrigin = process.env.NODE_ENV === 'development' ? '*' : process.env.URL;
-    	const headers = { /* ... CORS headers ... */ };
-        headers['Access-Control-Allow-Origin'] = allowedOrigin || '*';
-        headers['Access-Control-Allow-Headers'] = 'Content-Type';
-        headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
-
+    	const headers = {
+    		'Access-Control-Allow-Origin': allowedOrigin || '*',
+    		'Access-Control-Allow-Headers': 'Content-Type',
+    		'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    	};
 
     	// Handle CORS Preflight
     	if (event.httpMethod === 'OPTIONS') { return { statusCode: 204, headers, body: '' }; }
@@ -74,8 +106,8 @@
     			}
 
     			// --- Define Enhanced Prompts for Plan Generation ---
-    			const systemPrompt_GeneratePlans = `You are BirthdayPlannerAI... **Leverage your web browsing capabilities** ... Provide ONLY the valid JSON object: \`{ "plans": [...] }\` ...`; // Keep the detailed prompt from before
-    			const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans ... for ${userInput.birthdayPersonName} ... in ${userInput.location.city}, ${userInput.location.country}. Use your web search capabilities ... Output ONLY the valid JSON object.`; // Keep the detailed prompt from before
+    			const systemPrompt_GeneratePlans = `You are BirthdayPlannerAI, an expert event planner... **Leverage your web browsing capabilities** ... Provide ONLY the valid JSON object: \`{ "plans": [...] }\` ...`; // Keep the detailed prompt
+    			const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans ... for ${userInput.birthdayPersonName} ... in ${userInput.location.city}, ${userInput.location.country}. Use your web search capabilities ... Output ONLY the valid JSON object.`; // Keep the detailed prompt
 
     			// --- Call OpenAI API (gpt-4o, no explicit tools parameter) ---
     			console.log("Calling OpenAI (gpt-4o) for generatePlans (prompt-based search)...");
@@ -97,18 +129,17 @@
     			console.log("Successfully generated and parsed plans (using prompt-based search).");
 
             // ==================================================================
-    		// --- Action: Generate Invitation (No change needed here) ---
+    		// --- Action: Generate Invitation ---
             // ==================================================================
     		} else if (action === 'generateInvitation') {
-                // ... (Keep existing generateInvitation logic - uses gpt-3.5-turbo) ...
-                 const { plan, template, date, time } = data;
+                const { plan, template, date, time } = data;
                 if (!plan || typeof plan !== 'object' || !template || !date || !time) { throw new Error("Missing data for generateInvitation action."); }
                 const birthdayPersonName = data.userInput?.birthdayPersonName || plan.name || "the birthday person";
                 console.log("Calling OpenAI (gpt-3.5-turbo) for invitation text...");
-                const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: [/*...*/], temperature: 0.7 });
+                const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: [/* System prompt */{ role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, /* User prompt */ { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` }], temperature: 0.7 });
                 const text = textCompletion.choices[0]?.message?.content?.trim() || `You're invited...`;
                 console.log("Calling OpenAI (DALL-E) for invitation image...");
-                const imageResponse = await openai.images.generate({ model: 'dall-e-3', prompt: `...`, n: 1, size: '1024x1024', quality: 'standard' });
+                const imageResponse = await openai.images.generate({ model: 'dall-e-3', prompt: `Generate a visually appealing background image for a birthday invitation. Theme: "${plan.theme || plan.name}". Style: ${template}. Suitable as a background. Do NOT include any words or text characters.`, n: 1, size: '1024x1024', quality: 'standard' });
                 const imageUrl = imageResponse.data?.[0]?.url || '';
                 responseData = { text, imageUrl, template };
                 console.log("Successfully generated invitation components.");
@@ -137,7 +168,7 @@
     			if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
     			responseData = extractAndParseJson(content);
     			if (!responseData || typeof responseData.optimizedPlan !== 'object' || responseData.optimizedPlan === null) { /* ... validation ... */ throw new Error("AI response format error: Expected { optimizedPlan: { ... } }."); }
-                if (typeof responseData.optimizedPlan.optimizationSummary !== 'string') { /* ... warning/default ... */ }
+                if (typeof responseData.optimizedPlan.optimizationSummary !== 'string') { /* ... warning/default ... */ responseData.optimizedPlan.optimizationSummary = "Budget optimization applied (summary not provided).";}
     			console.log("Successfully generated and parsed optimized plan.");
 
     		// --- Action Not Recognized ---
@@ -151,7 +182,6 @@
 
     	// --- Global Error Handling ---
     	} catch (error) {
-            // ... (Keep existing global error handling) ...
             console.error('Error processing request in Netlify function:', error);
             const status = error.statusCode || error.status || (error.response && error.response.status) || 500;
             const message = error.message || 'An internal server error occurred.';
