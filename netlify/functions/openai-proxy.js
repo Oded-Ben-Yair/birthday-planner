@@ -10,17 +10,13 @@ const extractAndParseJson = (jsonString) => {
     // ... (Keep the enhanced extractAndParseJson function) ...
     if (!jsonString || typeof jsonString !== 'string') { console.error('extractAndParseJson: Input invalid.'); return null; }
     let potentialJson = jsonString.trim();
-    // Remove potential markdown fences ```json ... ``` or ``` ... ```
     if (potentialJson.startsWith('```json')) { potentialJson = potentialJson.substring(7).trim(); if (potentialJson.endsWith('```')) { potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim(); }}
     else if (potentialJson.startsWith('```')) { potentialJson = potentialJson.substring(3).trim(); if (potentialJson.endsWith('```')) { potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim(); }}
-    // Attempt to remove trailing commas before closing braces/brackets
     const cleanJsonString = (str) => { try { return str.replace(/,\s*([}\]])/g, '$1'); } catch (e) { console.warn("Regex cleaning failed..."); return str; }};
     const tryParse = (str) => { const cleanedStr = cleanJsonString(str); return JSON.parse(cleanedStr); };
     try { const parsed = tryParse(potentialJson); console.log("Parsing successful."); return parsed; }
     catch (parseError) { console.error(`Failed to parse JSON: ${parseError.message}`); const snippet = potentialJson.length > 500 ? potentialJson.substring(0, 500) + '...' : potentialJson; console.error('String that failed parsing (snippet):', snippet); return null; }
 };
-
-// Note: simulateRetrieval function is removed as we are using the built-in tool now.
 
 // Define the handler function for Netlify
 export const handler = async (event) => {
@@ -43,7 +39,7 @@ export const handler = async (event) => {
 
         console.log(`Received action: ${action}`);
         let responseData = null;
-        let responseAnnotations = null; // To potentially store citations later
+        let responseAnnotations = null;
 
         // ==================================================================
         // --- Action: Generate Birthday Plans (Using Web Search Tool) ---
@@ -128,38 +124,25 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
             console.log(`Calling OpenAI model '${'gpt-4o-search-preview'}' for generatePlans (Web Search Enabled)...`);
             const completion = await openai.chat.completions.create({
-                // ** Use Web Search enabled model **
                 model: 'gpt-4o-search-preview',
                 messages: [
                     { role: 'system', content: systemPrompt_GeneratePlans },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                temperature: 0.5,
+                // ** temperature parameter REMOVED as it's incompatible **
                 response_format: { type: "json_object" },
-                // ** Enable Web Search Tool **
-                web_search_options: {
-                    // user_location: { // Optional: Provide location hint if needed
-                    //     type: "approximate",
-                    //     approximate: {
-                    //         country: userInput.location.country,
-                    //         city: userInput.location.city,
-                    //     },
-                    // },
-                    // search_context_size: "medium" // Optional: Adjust context size if needed (low, medium, high)
-                },
+                web_search_options: {}, // Enable web search
             });
 
-            // Extract content and potentially annotations
             const message = completion.choices[0]?.message;
             const finalContent = message?.content;
-            responseAnnotations = message?.annotations; // Store annotations if present
+            responseAnnotations = message?.annotations;
 
             if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Web Search)');
 
-            // Parse the main content JSON
             responseData = extractAndParseJson(finalContent);
 
-            // Validation (keep robust checks)
+            // Validation
             if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p => p && p.id && p.name && p.venue && typeof p.venue === 'object' && p.schedule && Array.isArray(p.schedule) && p.catering && typeof p.catering === 'object' && p.guestEngagement && typeof p.guestEngagement === 'object')) {
                 console.error("Final parsed data failed validation (generatePlans - Web Search). Parsed:", responseData);
                 throw new Error("AI response format error or missing required plan fields/objects after parsing.");
@@ -179,7 +162,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
              const birthdayPersonName = plan.name ? plan.name.split("'s")[0] : "the birthday person";
              const messagesForInviteText = [ { role: 'system', content: `You create engaging birthday invitation text. Respond ONLY with the text, no extra comments.` }, { role: 'user', content: `Create invitation text for ${birthdayPersonName}'s birthday party. Theme: "${plan.name}" (${plan.description}). Venue: ${plan.venue?.name || 'the specified venue'}. Date: ${date}. Time: ${time}. Style: ${template}. Include key details concisely.` } ];
              console.log("Calling OpenAI (gpt-3.5-turbo) for invitation text...");
-             const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: messagesForInviteText, temperature: 0.7 });
+             const textCompletion = await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: messagesForInviteText, temperature: 0.7 }); // Keep temp here if model supports it
              const text = textCompletion.choices[0]?.message?.content?.trim() || `You're invited...`;
              console.log("Calling OpenAI (DALL-E) for invitation image...");
              const imagePrompt = `Illustration for a birthday invitation. Theme: ${plan.name}. Style: ${template}. For ${birthdayPersonName}'s birthday. Key elements: ${plan.description}. Vibrant and celebratory.`;
@@ -190,14 +173,13 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
 
         } else if (action === 'optimizeBudget') {
             // ... (Keep existing optimizeBudget logic) ...
-            // NOTE: optimizeBudget might also benefit from web search for current pricing/deals.
-            // Consider changing its model and adding web_search_options if needed later.
             const { plan, priorities, numericBudget, currency } = data;
             if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) { throw new Error("Missing required data for optimizeBudget action."); }
-            const systemPrompt_OptimizeBudget = `You are a budget optimization expert...`; // Keep existing or refine later
-            const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`; // Keep existing or refine later
+            const systemPrompt_OptimizeBudget = `You are a budget optimization expert...`;
+            const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
             const messagesForOptimize = [ { role: 'system', content: systemPrompt_OptimizeBudget }, { role: 'user', content: userPrompt_OptimizeBudget } ];
             console.log("Calling OpenAI (gpt-4o) for optimizeBudget...");
+            // Keep temperature if gpt-4o supports it for this action
             const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, });
             const content = completion.choices[0]?.message?.content;
             if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
@@ -214,13 +196,10 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
         } else { throw new Error(`Invalid action specified: ${action}`); }
 
         // --- Return Successful Response ---
-        // Note: Currently only returning parsed JSON content.
-        // Annotations (citations) are logged but not returned to frontend.
         return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
     // --- Global Error Handling ---
     } catch (caughtError) {
-        // ... (Keep simplified catch block) ...
         console.error('--- ERROR Processing Request in Netlify Function ---');
         console.error(caughtError);
         const status = caughtError?.status || caughtError?.response?.status || 500;
