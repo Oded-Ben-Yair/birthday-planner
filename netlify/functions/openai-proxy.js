@@ -50,7 +50,6 @@ export const handler = async (event) => {
             }
 
             // --- Use Detailed RCC Prompt Structure ---
-            // This is the detailed prompt from immersive proxy_rcc_prompt_update_step1
             const systemPrompt_GeneratePlans_RCC_Detailed = `You are PartyPilot, an AI-powered birthday planning assistant designed to create personalized, creative, and practical birthday plans.
 
 ### CONSTITUTIONAL PRINCIPLES
