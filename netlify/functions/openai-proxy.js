@@ -1,98 +1,60 @@
     // netlify/functions/openai-proxy.js
     import OpenAI from 'openai';
 
-    // Initialize OpenAI client securely using the environment variable
-    const openai = new OpenAI({
-    	apiKey: process.env.OPENAI_API_KEY,
-    });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     /**
-     * Attempts to extract and parse a JSON object or array from a string.
-     * Includes logic to remove markdown fences and trailing commas before parsing.
-     * @param {string | null | undefined} jsonString The raw string potentially containing JSON.
-     * @returns {object | array | null} The parsed JSON object/array, or null if parsing fails.
+     * Enhanced JSON parser: Removes markdown fences, trailing commas, and attempts parsing.
      */
     const extractAndParseJson = (jsonString) => {
-    	if (!jsonString || typeof jsonString !== 'string') {
-    		console.error('extractAndParseJson: Input is not a valid string.', jsonString);
-    		return null;
-    	}
+    	if (!jsonString || typeof jsonString !== 'string') { /* ... */ return null; }
 
-        let potentialJson = jsonString.trim(); // Trim whitespace
-
-        // ** ADDED: Remove markdown fences (```json ... ``` or ``` ... ```) **
+    	let potentialJson = jsonString.trim();
+        // Remove markdown fences (```json ... ``` or ``` ... ```)
         if (potentialJson.startsWith('```json')) {
-            potentialJson = potentialJson.substring(7); // Remove ```json
+            potentialJson = potentialJson.substring(7).trim(); // Remove ```json and trim
             if (potentialJson.endsWith('```')) {
-                potentialJson = potentialJson.substring(0, potentialJson.length - 3); // Remove ```
+                potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim();
             }
         } else if (potentialJson.startsWith('```')) {
-             potentialJson = potentialJson.substring(3); // Remove ```
+             potentialJson = potentialJson.substring(3).trim();
              if (potentialJson.endsWith('```')) {
-                potentialJson = potentialJson.substring(0, potentialJson.length - 3); // Remove ```
+                potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim();
             }
         }
-        potentialJson = potentialJson.trim(); // Trim again after removing fences
+        // Log snippet after potential fence removal
+        // console.log("String after fence removal (snippet):", potentialJson.substring(0, 100));
 
-
-    	/**
-    	 * Cleans common JSON issues like trailing commas.
-    	 * @param {string} str The JSON string to clean.
-    	 * @returns {string} The cleaned JSON string.
-    	 */
     	const cleanJsonString = (str) => {
-    	    try {
-    	        // Remove trailing commas before closing braces/brackets
-    	        let cleaned = str.replace(/,\s*([}\]])/g, '$1');
-    	        return cleaned;
-    	    } catch (e) {
-    	         console.warn("Regex cleaning failed, using original string.", e);
-    	         return str;
-    	    }
+    	    try { return str.replace(/,\s*([}\]])/g, '$1'); } // Remove trailing commas
+            catch (e) { console.warn("Regex cleaning failed...", e); return str; }
     	};
-
-    	/**
-    	 * Attempts to parse a potentially cleaned JSON string.
-    	 * @param {string} str The string to parse.
-    	 * @returns {object | array} The parsed object or array.
-    	 * @throws Throws an error if parsing fails.
-    	 */
-    	const tryParse = (str) => {
-    		const cleanedStr = cleanJsonString(str);
-    		return JSON.parse(cleanedStr);
-    	};
+    	const tryParse = (str) => { const cleanedStr = cleanJsonString(str); return JSON.parse(cleanedStr); };
 
     	try {
-    		// Attempt parsing the potentially cleaned original string first
-            console.log("Attempting to parse cleaned string (length:", potentialJson.length, ")"); // Log length
-    		return tryParse(potentialJson);
+    		const parsed = tryParse(potentialJson);
+            console.log("Parsing successful.");
+            return parsed;
     	} catch (parseError) {
     		console.error(`Failed to parse JSON: ${parseError.message}`);
-            // Only log the problematic string snippet if it's not excessively long
             const snippet = potentialJson.length > 500 ? potentialJson.substring(0, 500) + '...' : potentialJson;
 			console.error('String that failed parsing (snippet):', snippet);
-			return null; // Return null if parsing fails
+			return null;
     	}
     };
 
-
     // Define the handler function for Netlify
     export const handler = async (event) => {
-    	// CORS Headers
     	const allowedOrigin = process.env.NODE_ENV === 'development' ? '*' : process.env.URL;
-    	const headers = {
-            'Access-Control-Allow-Origin': allowedOrigin || '*',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        };
+    	const headers = { /* ... CORS headers ... */ };
+        headers['Access-Control-Allow-Origin'] = allowedOrigin || '*';
+        headers['Access-Control-Allow-Headers'] = 'Content-Type';
+        headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
 
-    	// Handle CORS Preflight
     	if (event.httpMethod === 'OPTIONS') { return { statusCode: 204, headers, body: '' }; }
-    	// Handle incorrect method
     	if (event.httpMethod !== 'POST') { return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) }; }
 
     	try {
-    		// --- Request Body Parsing and Validation ---
     		if (!event.body) throw new Error("Request body is missing.");
     		let payload;
     		try { payload = JSON.parse(event.body); }
@@ -108,36 +70,17 @@
     		// ==================================================================
     		if (action === 'generatePlans') {
     			const { userInput } = data;
-    			// Validate userInput fields
-    			if (!userInput || typeof userInput !== 'object' || /* ... other checks ... */ !userInput.location?.country) {
-    				console.error("Missing required fields in userInput for generatePlans:", userInput);
-    				throw new Error("Missing required user input data for generating plans.");
-    			}
+    			if (!userInput || typeof userInput !== 'object' || /* ... validation ... */ !userInput.location?.country) { throw new Error("Missing required user input data."); }
 
-    			// --- Define Enhanced Prompts ---
     			const systemPrompt_GeneratePlans = `You are BirthdayPlannerAI... **Leverage your web browsing capabilities** ... Provide ONLY the valid JSON object: \`{ "plans": [...] }\` ...`; // Keep detailed prompt
     			const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans ... for ${userInput.birthdayPersonName} ... in ${userInput.location.city}, ${userInput.location.country}. Use your web search capabilities ... Output ONLY the valid JSON object.`; // Keep detailed prompt
 
-    			// --- Call OpenAI API (gpt-4o, prompt-based search) ---
     			console.log("Calling OpenAI (gpt-4o) for generatePlans (prompt-based search)...");
-    			const completion = await openai.chat.completions.create({
-    				model: 'gpt-4o',
-    				messages: [ { role: 'system', content: systemPrompt_GeneratePlans }, { role: 'user', content: userPrompt_GeneratePlans } ],
-    				temperature: 0.7,
-    			});
-
-    			// --- Process Final Response ---
-    			const finalContent = completion.choices[0]?.message?.content;
+    			const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: [/*...*/], temperature: 0.7 });
+                const finalContent = completion.choices[0]?.message?.content;
     			if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans)');
-
-    			responseData = extractAndParseJson(finalContent); // Use enhanced parser
-
-    			// ** Validate the parsed response structure **
-    			if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3) {
-    				console.error("Final parsed data is invalid or 'plans' array missing/incorrect length (generatePlans).");
-                    if (!responseData) console.error("Parsing returned null. Raw content snippet:", finalContent.substring(0, 200));
-    				throw new Error("AI response format error: Expected { plans: [plan1, plan2, plan3] }.");
-    			}
+    			responseData = extractAndParseJson(finalContent);
+    			if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3) { throw new Error("AI response format error: Expected { plans: [plan1, plan2, plan3] }."); }
     			console.log("Successfully generated and parsed plans (using prompt-based search).");
 
             // ==================================================================
@@ -162,9 +105,7 @@
             // ==================================================================
     		} else if (action === 'optimizeBudget') {
     			const { plan, priorities, numericBudget, currency } = data;
-    			if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) {
-    				throw new Error("Missing required data for optimizeBudget action.");
-    			}
+    			if (!plan || typeof plan !== 'object' || !priorities || typeof priorities !== 'object' || numericBudget === undefined || !currency) { throw new Error("Missing required data for optimizeBudget action."); }
 
     			const systemPrompt_OptimizeBudget = `You are a budget optimization expert... **Summary Field:** Include ... \`optimizationSummary\` (string). ... Return ONLY the valid JSON object { "optimizedPlan": { ... } }.`; // Keep detailed prompt
     			const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON ... Return ONLY the valid JSON object containing the "optimizedPlan", including an "optimizationSummary" field within it....`; // Keep detailed prompt
@@ -180,27 +121,31 @@
     			if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
 
     			const parsedResponse = extractAndParseJson(content); // Use enhanced parser
+                console.log("Parsed optimizeBudget response:", parsedResponse); // Log the parsed object
 
-                // ** REVISED VALIDATION LOGIC **
+                // ** REVISED VALIDATION & WRAPPING LOGIC **
                 let finalOptimizedPlanData;
                 if (parsedResponse && typeof parsedResponse.optimizedPlan === 'object' && parsedResponse.optimizedPlan !== null) {
                     // Case 1: AI returned the correct { optimizedPlan: { ... } } structure
                     console.log("AI returned correct structure with 'optimizedPlan' key.");
                     finalOptimizedPlanData = parsedResponse;
-                } else if (parsedResponse && typeof parsedResponse.id === 'string' && typeof parsedResponse.name === 'string') {
-                    // Case 2: AI likely returned the plan object directly
-                    console.warn("AI returned optimized plan directly without 'optimizedPlan' key. Wrapping it.");
+                }
+                // Case 2: Check if the parsed response ITSELF looks like a plan object
+                // Be more flexible: check for essential plan properties maybe?
+                else if (parsedResponse && typeof parsedResponse === 'object' && parsedResponse !== null && ('id' in parsedResponse || 'name' in parsedResponse || 'venue' in parsedResponse)) {
+                    // It looks like the plan object was returned directly.
+                    console.warn("AI likely returned optimized plan directly without 'optimizedPlan' key. Wrapping it.");
                     finalOptimizedPlanData = {
                         optimizedPlan: { ...parsedResponse } // Wrap the direct response
                     };
                 } else {
                     // Case 3: Parsing failed or structure is completely wrong
-                    console.error("Parsed data is invalid or doesn't resemble a plan object (optimizeBudget).");
-                    if (!parsedResponse) console.error("Parsing returned null. Raw content snippet:", content.substring(0, 200));
-                    throw new Error("AI response format error: Expected { optimizedPlan: { ... } } or a plan object.");
+                    console.error("Parsed data is invalid or doesn't resemble a plan object (optimizeBudget). Parsed Response:", parsedResponse);
+                    if (!parsedResponse && content) console.error("Parsing returned null. Raw content snippet:", content.substring(0, 200));
+                    throw new Error("AI response format error: Expected { optimizedPlan: { ... } } or a recognizable plan object.");
                 }
 
-                // Ensure summary exists within the final structure
+                // Ensure summary exists within the final structure (handle both cases)
                 if (typeof finalOptimizedPlanData.optimizedPlan.optimizationSummary !== 'string') {
                      console.warn("AI did not include 'optimizationSummary' string in the optimized plan.");
                      finalOptimizedPlanData.optimizedPlan.optimizationSummary = "Budget optimization applied (summary not provided by AI).";
@@ -210,16 +155,14 @@
     			console.log("Successfully processed optimized plan.");
 
     		// --- Action Not Recognized ---
-    		} else {
-    			console.error('Invalid action received:', action);
-    			throw new Error(`Invalid action specified: ${action}`);
-    		}
+    		} else { /* ... */ throw new Error(`Invalid action specified: ${action}`); }
 
     		// --- Return Successful Response ---
     		return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
     	// --- Global Error Handling ---
-    	} catch (error) {
+    	} catch (error) { /* ... Keep existing error handling ... */ }
+        {
             console.error('Error processing request in Netlify function:', error);
             const status = error.statusCode || error.status || (error.response && error.response.status) || 500;
             const message = error.message || 'An internal server error occurred.';
