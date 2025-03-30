@@ -129,24 +129,26 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
                     { role: 'system', content: systemPrompt_GeneratePlans },
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
-                // ** response_format parameter REMOVED **
+                // ** max_tokens ADDED to allow longer response **
+                max_tokens: 4000, // Set a higher limit (max output is 4096 for gpt-4o)
                 web_search_options: {}, // Enable web search
+                // response_format removed in previous step
+                // temperature removed in previous step
             });
 
             const message = completion.choices[0]?.message;
             const finalContent = message?.content;
-            responseAnnotations = message?.annotations;
+            responseAnnotations = message?.annotations; // Store annotations if present
 
             if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans - Web Search)');
 
             // Attempt to parse, relying on prompt instructions and parser robustness
             responseData = extractAndParseJson(finalContent);
 
-            // Validation - Crucial now as format isn't guaranteed by API
+            // Validation
             if (!responseData || !Array.isArray(responseData.plans) || responseData.plans.length !== 3 || !responseData.plans.every(p => p && p.id && p.name && p.venue && typeof p.venue === 'object' && p.schedule && Array.isArray(p.schedule) && p.catering && typeof p.catering === 'object' && p.guestEngagement && typeof p.guestEngagement === 'object')) {
                 console.error("Final parsed data failed validation (generatePlans - Web Search). Parsed:", responseData);
-                // Log the raw content if parsing failed or structure is wrong
-                console.error("Raw content received that failed validation:", finalContent);
+                console.error("Raw content received that failed validation:", finalContent); // Log raw content on validation failure
                 throw new Error("AI response format error or missing required plan fields/objects after parsing.");
             }
             console.log("Successfully generated and parsed plans (using Web Search Tool).");
@@ -181,7 +183,7 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
             const userPrompt_OptimizeBudget = `Optimize the following birthday plan JSON...`;
             const messagesForOptimize = [ { role: 'system', content: systemPrompt_OptimizeBudget }, { role: 'user', content: userPrompt_OptimizeBudget } ];
             console.log("Calling OpenAI (gpt-4o) for optimizeBudget...");
-            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, }); // Keep response_format if gpt-4o supports it here
+            const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: messagesForOptimize, temperature: 0.4, response_format: { type: "json_object" }, max_tokens: 4000 }); // Added max_tokens here too for safety
             const content = completion.choices[0]?.message?.content;
             if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
             const parsedResponse = extractAndParseJson(content);
@@ -206,7 +208,6 @@ You operate through phases. You are currently in the **PLAN GENERATION** phase.
         const status = caughtError?.status || caughtError?.response?.status || 500;
         const message = caughtError instanceof Error ? caughtError.message : 'An internal server error occurred.';
         if (caughtError instanceof OpenAI.APIError) { console.error('OpenAI API Error Details:', { status: caughtError.status, message: caughtError.message, code: caughtError.code, type: caughtError.type }); }
-        // Return the error message in the response body for the frontend to catch
         return { statusCode: status, headers, body: JSON.stringify({ error: message }) };
     }
 };
