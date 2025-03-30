@@ -7,9 +7,9 @@
      * Enhanced JSON parser: Removes markdown fences, trailing commas, and attempts parsing.
      */
     const extractAndParseJson = (jsonString) => {
-        // ... (Keep the enhanced extractAndParseJson function from openai_proxy_fix_wrapper_2) ...
         if (!jsonString || typeof jsonString !== 'string') { console.error('extractAndParseJson: Input invalid.'); return null; }
         let potentialJson = jsonString.trim();
+        // Remove markdown fences (```json ... ``` or ``` ... ```)
         if (potentialJson.startsWith('```json')) { potentialJson = potentialJson.substring(7).trim(); if (potentialJson.endsWith('```')) { potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim(); }}
         else if (potentialJson.startsWith('```')) { potentialJson = potentialJson.substring(3).trim(); if (potentialJson.endsWith('```')) { potentialJson = potentialJson.substring(0, potentialJson.length - 3).trim(); }}
         const cleanJsonString = (str) => { try { return str.replace(/,\s*([}\]])/g, '$1'); } catch (e) { console.warn("Regex cleaning failed..."); return str; }};
@@ -56,7 +56,7 @@
                 const userPrompt_GeneratePlans = `Generate the 3 distinct birthday plans ... for ${userInput.birthdayPersonName} ... in ${userInput.location.city}, ${userInput.location.country}. Use your web search capabilities ... Output ONLY the valid JSON object.`; // Keep detailed prompt
 
                 console.log("Calling OpenAI (gpt-4o) for generatePlans (prompt-based search)...");
-                const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: [/*...*/], temperature: 0.7 });
+                const completion = await openai.chat.completions.create({ model: 'gpt-4o', messages: [/* System + User prompts */ { role: 'system', content: systemPrompt_GeneratePlans }, { role: 'user', content: userPrompt_GeneratePlans }], temperature: 0.7 });
                 const finalContent = completion.choices[0]?.message?.content;
                 if (!finalContent) throw new Error('No final content returned from OpenAI (generatePlans)');
                 responseData = extractAndParseJson(finalContent);
@@ -68,7 +68,7 @@
             // ==================================================================
             } else if (action === 'generateInvitation') {
                 // ... (Keep existing generateInvitation logic) ...
-                 const { plan, template, date, time } = data;
+                const { plan, template, date, time } = data;
                 if (!plan || typeof plan !== 'object' || !template || !date || !time) { throw new Error("Missing data for generateInvitation action."); }
                 const birthdayPersonName = data.userInput?.birthdayPersonName || plan.name || "the birthday person";
                 console.log("Calling OpenAI (gpt-3.5-turbo) for invitation text...");
@@ -94,7 +94,7 @@
                 const content = completion.choices[0]?.message?.content;
                 if (!content) throw new Error('No content returned from OpenAI (optimizeBudget)');
                 const parsedResponse = extractAndParseJson(content);
-                console.log("Parsed optimizeBudget response:", parsedResponse); // Log parsed object
+                console.log("Parsed optimizeBudget response:", parsedResponse);
                 let finalOptimizedPlanData;
                 if (parsedResponse && typeof parsedResponse.optimizedPlan === 'object' && parsedResponse.optimizedPlan !== null) { /* Case 1 */ finalOptimizedPlanData = parsedResponse; }
                 else if (parsedResponse && typeof parsedResponse === 'object' && parsedResponse !== null && ('id' in parsedResponse || 'name' in parsedResponse || 'venue' in parsedResponse)) { /* Case 2 */ console.warn("Wrapping direct plan object."); finalOptimizedPlanData = { optimizedPlan: { ...parsedResponse } }; }
@@ -110,21 +110,25 @@
             return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
         // ==================================================================
-        // --- ** SIMPLIFIED Global Error Handling ** ---
+        // --- ** CORRECTED Global Error Handling ** ---
         // ==================================================================
-        } catch (caughtError) { // Use a different variable name like 'caughtError'
+        } catch (caughtError) { // Use 'caughtError' consistently
             console.error('--- ERROR Processing Request in Netlify Function ---');
             console.error(caughtError); // Log the full error object
 
-            // Basic error information to return
-            const status = caughtError?.status || caughtError?.response?.status || 500; // Get status if available
+            // ** FIX: Use 'caughtError' here to get status **
+            const status = caughtError?.status || caughtError?.response?.status || 500;
             const message = caughtError instanceof Error ? caughtError.message : 'An internal server error occurred.';
+
+            // ** FIX: Check instanceof using 'caughtError' ** (Though removing this was the previous step, putting it back correctly)
+            if (caughtError instanceof OpenAI.APIError) {
+                 console.error('OpenAI API Error Details:', { status: caughtError.status, message: caughtError.message, code: caughtError.code, type: caughtError.type });
+            }
 
             return {
                 statusCode: status,
                 headers,
-                // Return a simple error structure
-                body: JSON.stringify({ error: message }),
+                body: JSON.stringify({ error: message }), // Key is 'error', value is 'message' variable
             };
         }
     };
