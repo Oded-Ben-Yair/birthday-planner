@@ -22,10 +22,18 @@
     		// Basic check if plan is not an object or is null
     		if (typeof plan !== 'object' || plan === null) {
     			console.warn(`[Plan ${index + 1}] Sanitizing encountered invalid plan item (not an object or null):`, plan);
-    			// Return a default valid structure
-    			return { /* ... default plan structure ... */ };
-                // (Using the same default structure as before)
-                id: `invalid-${Date.now()}-${Math.random()}`, name: 'Invalid Plan Data', description: 'Data could not be loaded correctly.', profile: 'Unknown', venue: { name: '', description: '', costRange: '', amenities: [], suitability: '', venueSearchSuggestions: [] }, schedule: [], catering: { estimatedCost: '', servingStyle: '', menu: { appetizers: [], mainCourses: [], desserts: '', beverages: [] }, cateringSearchSuggestions: [] }, guestEngagement: { icebreakers: [], interactiveElements: [], photoOpportunities: [], partyFavors: [], techIntegration: [], entertainmentSearchSuggestions: [] }, optimizationSummary: undefined,
+    			// ** FIXED: Return the default object literal directly **
+    			return {
+    				id: `invalid-${Date.now()}-${Math.random()}`,
+    				name: 'Invalid Plan Data',
+    				description: 'Data could not be loaded correctly.',
+    				profile: 'Unknown',
+    				venue: { name: '', description: '', costRange: '', amenities: [], suitability: '', venueSearchSuggestions: [] },
+    				schedule: [],
+    				catering: { estimatedCost: '', servingStyle: '', menu: { appetizers: [], mainCourses: [], desserts: '', beverages: [] }, cateringSearchSuggestions: [] },
+    				guestEngagement: { icebreakers: [], interactiveElements: [], photoOpportunities: [], partyFavors: [], techIntegration: [], entertainmentSearchSuggestions: [] },
+                    optimizationSummary: undefined,
+    			};
     		}
 
     		// Use optional chaining and nullish coalescing for safer access and default values
@@ -38,39 +46,54 @@
                 optimizationSummary: typeof plan.optimizationSummary === 'string' ? plan.optimizationSummary : undefined,
 
                 // Sanitize nested objects and their fields
-    			venue: {
-    				name: plan.venue?.name || '',
-    				description: plan.venue?.description || '',
-    				costRange: plan.venue?.costRange || '',
-    				amenities: Array.isArray(plan.venue?.amenities) ? plan.venue.amenities : [],
-    				suitability: plan.venue?.suitability || '',
-    				venueSearchSuggestions: Array.isArray(plan.venue?.venueSearchSuggestions) ? plan.venue.venueSearchSuggestions : [],
-    			},
-    			schedule: Array.isArray(plan.schedule) ? plan.schedule.map(item => ({ // Sanitize schedule items
-                    time: item?.time || '',
-                    activity: item?.activity || '',
-                    description: item?.description || undefined
-                })) : [],
-    			catering: {
-    				estimatedCost: plan.catering?.estimatedCost || '',
-    				servingStyle: plan.catering?.servingStyle || '',
-    				menu: {
-    					appetizers: Array.isArray(plan.catering?.menu?.appetizers) ? plan.catering.menu.appetizers : [],
-    					mainCourses: Array.isArray(plan.catering?.menu?.mainCourses) ? plan.catering.menu.mainCourses : [],
-    					desserts: plan.catering?.menu?.desserts || '',
-    					beverages: Array.isArray(plan.catering?.menu?.beverages) ? plan.catering.menu.beverages : [],
-    				},
-    				cateringSearchSuggestions: Array.isArray(plan.catering?.cateringSearchSuggestions) ? plan.catering.cateringSearchSuggestions : [],
-    			},
-    			guestEngagement: {
-    				icebreakers: Array.isArray(plan.guestEngagement?.icebreakers) ? plan.guestEngagement.icebreakers : [],
-    				interactiveElements: Array.isArray(plan.guestEngagement?.interactiveElements) ? plan.guestEngagement.interactiveElements : [],
-    				photoOpportunities: Array.isArray(plan.guestEngagement?.photoOpportunities) ? plan.guestEngagement.photoOpportunities : [],
-    				partyFavors: Array.isArray(plan.guestEngagement?.partyFavors) ? plan.guestEngagement.partyFavors : [],
-    				techIntegration: Array.isArray(plan.guestEngagement?.techIntegration) ? plan.guestEngagement.techIntegration : [],
-    				entertainmentSearchSuggestions: Array.isArray(plan.guestEngagement?.entertainmentSearchSuggestions) ? plan.guestEngagement.entertainmentSearchSuggestions : [],
-    			},
+    			venue: { /* ... venue sanitization ... */ },
+                schedule: Array.isArray(plan.schedule) ? plan.schedule.map(item => ({ /* ... schedule item sanitization ... */ })) : [],
+    			catering: { /* ... catering sanitization ... */ },
+    			guestEngagement: { /* ... guest engagement sanitization ... */ },
     		};
+            // Re-paste the nested sanitization logic from results_debug_logging_1 if it was removed
+            // Venue:
+            sanitizedPlan.venue = {
+                ...(plan.venue || {}),
+                name: plan.venue?.name || '',
+                description: plan.venue?.description || '',
+                costRange: plan.venue?.costRange || '',
+                amenities: Array.isArray(plan.venue?.amenities) ? plan.venue.amenities : [],
+                suitability: plan.venue?.suitability || '',
+                venueSearchSuggestions: Array.isArray(plan.venue?.venueSearchSuggestions) ? plan.venue.venueSearchSuggestions : [],
+            };
+            // Schedule:
+            sanitizedPlan.schedule = Array.isArray(plan.schedule) ? plan.schedule.map(item => ({
+                time: item?.time || '',
+                activity: item?.activity || '',
+                description: item?.description || undefined
+            })) : [];
+            // Catering:
+            sanitizedPlan.catering = {
+                ...(plan.catering || {}),
+                estimatedCost: plan.catering?.estimatedCost || '',
+                servingStyle: plan.catering?.servingStyle || '',
+                menu: {
+                    ...(plan.catering?.menu || {}),
+                    appetizers: Array.isArray(plan.catering?.menu?.appetizers) ? plan.catering.menu.appetizers : [],
+                    mainCourses: Array.isArray(plan.catering?.menu?.mainCourses) ? plan.catering.menu.mainCourses : [],
+                    desserts: plan.catering?.menu?.desserts || '',
+                    beverages: Array.isArray(plan.catering?.menu?.beverages) ? plan.catering.menu.beverages : [],
+                },
+                cateringSearchSuggestions: Array.isArray(plan.catering?.cateringSearchSuggestions) ? plan.catering.cateringSearchSuggestions : [],
+            };
+            // Guest Engagement:
+            sanitizedPlan.guestEngagement = {
+                ...(plan.guestEngagement || {}),
+                icebreakers: Array.isArray(plan.guestEngagement?.icebreakers) ? plan.guestEngagement.icebreakers : [],
+                interactiveElements: Array.isArray(plan.guestEngagement?.interactiveElements) ? plan.guestEngagement.interactiveElements : [],
+                photoOpportunities: Array.isArray(plan.guestEngagement?.photoOpportunities) ? plan.guestEngagement.photoOpportunities : [],
+                partyFavors: Array.isArray(plan.guestEngagement?.partyFavors) ? plan.guestEngagement.partyFavors : [],
+                techIntegration: Array.isArray(plan.guestEngagement?.techIntegration) ? plan.guestEngagement.techIntegration : [],
+                entertainmentSearchSuggestions: Array.isArray(plan.guestEngagement?.entertainmentSearchSuggestions) ? plan.guestEngagement.entertainmentSearchSuggestions : [],
+            };
+
+
             console.log(`[Plan ${index + 1}] AFTER Sanitization:`, JSON.parse(JSON.stringify(sanitizedPlan))); // Log deep copy after
     		return sanitizedPlan;
     	});
@@ -90,17 +113,15 @@
         const [activeTab, setActiveTab] = useState<'plans' | 'invitation' | 'budget'>('plans');
         const [isLoading, setIsLoading] = useState<boolean>(true);
         const [error, setError] = useState<string | null>(null);
-        // ** ADDED State for optimization summary display **
         const [lastOptimizationSummary, setLastOptimizationSummary] = useState<string | null>(null);
         const navigate = useNavigate();
 
         // Effect to load data from localStorage
         useEffect(() => {
-            // ... (useEffect logic remains the same as before) ...
             console.log('Results component mounted. Loading data...');
             setIsLoading(true);
             setError(null);
-            setLastOptimizationSummary(null); // Reset summary on load
+            setLastOptimizationSummary(null);
 
             const storedPlans = localStorage.getItem('birthdayPlans');
             const storedUserInput = localStorage.getItem('userInput');
@@ -112,14 +133,18 @@
                 const parsedUserInput: UserInput = JSON.parse(storedUserInput);
                 if (!Array.isArray(parsedPlans)) { throw new Error('Stored plan data is corrupted (not an array).'); }
                 console.log('Successfully parsed data.');
-                const sanitizedLoadedPlans = sanitizePlans(parsedPlans as BirthdayPlan[]); // Use enhanced sanitize
+                const sanitizedLoadedPlans = sanitizePlans(parsedPlans as BirthdayPlan[]);
                 console.log('Sanitization complete.');
                 setPlans(sanitizedLoadedPlans);
                 setUserInput(parsedUserInput);
                 if (sanitizedLoadedPlans.length > 0 && sanitizedLoadedPlans[0]?.id) { setSelectedPlanId(sanitizedLoadedPlans[0].id); }
                 else { setSelectedPlanId(null); }
-            } catch (err) { /* ... error handling ... */ }
-            finally { setIsLoading(false); }
+            } catch (err) {
+                console.error('Error processing stored data:', err);
+                setError(`Failed to load plan data. It might be corrupted. ${err instanceof Error ? err.message : 'Unknown error'}`);
+                localStorage.removeItem('birthdayPlans');
+                localStorage.removeItem('userInput');
+            } finally { setIsLoading(false); }
         }, [navigate]);
 
         // Derived state: Find the currently selected plan object
@@ -135,10 +160,9 @@
             // Check if this update contains an optimization summary
             if(updatedPlan.optimizationSummary) {
                 setLastOptimizationSummary(updatedPlan.optimizationSummary);
-                // Optionally remove summary from plan before saving state if only needed temporarily
+                // We keep the summary in the plan object for now, could remove it before saving if needed
                 // delete updatedPlan.optimizationSummary;
             } else {
-                // Clear summary if update wasn't from optimizer (e.g., inline edit)
                 setLastOptimizationSummary(null);
             }
 
@@ -148,13 +172,45 @@
             try {
                 localStorage.setItem('birthdayPlans', JSON.stringify(updatedPlans));
                 console.log(`Plan ${updatedPlan.id} updated and saved to localStorage.`);
-            } catch (err) { /* ... error handling ... */ }
+            } catch (err) {
+                 console.error('Failed to update localStorage after plan update:', err);
+                 setError('Could not save plan changes locally.');
+            }
         };
 
         // --- Render Logic ---
-        if (isLoading) { /* ... loading UI ... */ }
-        if (error) { /* ... error UI ... */ }
 
+        // Loading State UI
+        if (isLoading) {
+            return (
+                <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+                    <div className="text-center">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                        <p className="text-lg text-gray-600">Loading plans...</p>
+                    </div>
+                </div>
+            );
+        }
+
+        // Error State UI
+        if (error) {
+             return (
+                <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+                    <div className="text-center bg-white p-8 rounded-lg shadow-xl max-w-md border border-red-200">
+                        <h2 className="text-2xl font-semibold text-red-600 mb-4">Loading Error</h2>
+                        <p className="text-gray-700 mb-6">{error}</p>
+                        <button
+                            onClick={() => { setError(null); navigate('/'); }}
+                            className="px-6 py-2 bg-red-500 text-white font-medium rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 transition duration-150 ease-in-out"
+                        >
+                            Start Over
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main Content UI (Loaded, No Error)
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto">
@@ -187,19 +243,13 @@
 
                                 {/* Budget Tab Content */}
                                 {activeTab === 'budget' && selectedPlan && userInput && (
-                                     <div className="max-w-4xl mx-auto space-y-6"> {/* Added space-y */}
-                                        {/* ** ADDED: Display Optimization Summary ** */}
+                                     <div className="max-w-4xl mx-auto space-y-6">
+                                        {/* Display Optimization Summary */}
                                         {lastOptimizationSummary && (
                                             <div className="p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg shadow relative" role="alert">
                                                 <strong className="font-bold block mb-1">Optimization Summary:</strong>
                                                 <p className="text-sm">{lastOptimizationSummary}</p>
-                                                <button
-                                                    onClick={() => setLastOptimizationSummary(null)}
-                                                    className="absolute top-1 right-1 text-green-600 hover:text-green-800 text-2xl font-bold leading-none p-1"
-                                                    aria-label="Dismiss summary"
-                                                >
-                                                    <span>&times;</span>
-                                                </button>
+                                                <button onClick={() => setLastOptimizationSummary(null)} className="absolute top-1 right-1 text-green-600 hover:text-green-800 text-2xl font-bold leading-none p-1" aria-label="Dismiss summary"> <span>&times;</span> </button>
                                             </div>
                                         )}
                                         {/* Budget Optimizer Component */}
@@ -220,9 +270,9 @@
                         </>
                     )}
                 </div>
-                {/* ... Error Snackbar ... */}
+                {/* Error Snackbar */}
+                 {error && !isLoading && ( /* ... error snackbar ... */ )}
             </div>
         );
     }
-
     
