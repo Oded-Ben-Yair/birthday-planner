@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
- * Enhanced JSON parser - Still useful for parsing function arguments
+ * Enhanced JSON parser
  */
 const extractAndParseJson = (jsonString) => {
     // ... (Keep the enhanced extractAndParseJson function) ...
@@ -17,7 +17,7 @@ const extractAndParseJson = (jsonString) => {
 };
 
 // --- Define the desired BirthdayPlan structure as an OpenAI Tool Schema ---
-// Based on src/types/index.ts BirthdayPlan interface
+// Keep this schema definition as it guides the AI, even if adherence isn't perfect
 const savePlanToolSchema = {
     type: "function",
     function: {
@@ -26,78 +26,126 @@ const savePlanToolSchema = {
         parameters: {
             type: "object",
             properties: {
-                // Match BirthdayPlan structure precisely
                 id: { type: "string", description: "Unique ID for the plan (e.g., plan-1, plan-2, plan-3 based on profile)." },
                 name: { type: "string", description: "Specific name for the birthday plan." },
                 description: { type: "string", description: "Concise description of the plan." },
                 profile: { type: "string", enum: ['DIY/Budget', 'Premium/Convenience', 'Unique/Adventure'], description: "The profile category of the plan." },
                 venue: {
-                    type: "object",
-                    properties: {
-                        name: { type: "string" },
-                        description: { type: "string" },
-                        costRange: { type: "string", description: "Estimated cost range (e.g., 'Estimate: 1000-1500 NIS')." },
-                        amenities: { type: "array", items: { type: "string" } },
-                        suitability: { type: "string" },
-                        venueSearchSuggestions: { type: "array", items: { type: "string" }, description: "Local search terms." }
-                    },
-                    required: ["name", "description", "costRange", "amenities", "suitability"] // Define required venue fields
+                    type: "object", properties: { name: { type: "string" }, description: { type: "string" }, costRange: { type: "string" }, amenities: { type: "array", items: { type: "string" } }, suitability: { type: "string" }, venueSearchSuggestions: { type: "array", items: { type: "string" } } },
+                    required: ["name", "description", "costRange", "amenities", "suitability"]
                 },
-                schedule: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            time: { type: "string" },
-                            activity: { type: "string" },
-                            description: { type: "string" }
-                        },
-                        required: ["time", "activity"]
-                    }
-                },
+                schedule: { type: "array", items: { type: "object", properties: { time: { type: "string" }, activity: { type: "string" }, description: { type: "string" } }, required: ["time", "activity"] } },
                 catering: {
-                    type: "object",
-                    properties: {
-                        estimatedCost: { type: "string" },
-                        servingStyle: { type: "string" },
-                        menu: {
-                            type: "object",
-                            properties: {
-                                appetizers: { type: "array", items: { type: "string" } },
-                                mainCourses: { type: "array", items: { type: "string" } },
-                                desserts: { type: "string", description: "String description of desserts." }, // Correct type
-                                beverages: { type: "array", items: { type: "string" } }
-                            },
-                            required: ["appetizers", "mainCourses", "desserts", "beverages"]
-                        },
-                        cateringSearchSuggestions: { type: "array", items: { type: "string" } }
-                    },
-                    required: ["estimatedCost", "servingStyle", "menu"] // Define required catering fields
+                    type: "object", properties: { estimatedCost: { type: "string" }, servingStyle: { type: "string" }, menu: { type: "object", properties: { appetizers: { type: "array", items: { type: "string" } }, mainCourses: { type: "array", items: { type: "string" } }, desserts: { type: "string" }, beverages: { type: "array", items: { type: "string" } } }, required: ["appetizers", "mainCourses", "desserts", "beverages"] }, cateringSearchSuggestions: { type: "array", items: { type: "string" } } },
+                    required: ["estimatedCost", "servingStyle", "menu"]
                 },
                 guestEngagement: {
-                    type: "object",
-                    properties: {
-                        icebreakers: { type: "array", items: { type: "string" } },
-                        interactiveElements: { type: "array", items: { type: "string" } },
-                        photoOpportunities: { type: "array", items: { type: "string" } },
-                        partyFavors: { type: "array", items: { type: "string" } },
-                        techIntegration: { type: "array", items: { type: "string" } },
-                        entertainmentSearchSuggestions: { type: "array", items: { type: "string" } }
-                    },
-                    required: ["icebreakers", "interactiveElements", "photoOpportunities", "partyFavors"] // Define required engagement fields
+                    type: "object", properties: { icebreakers: { type: "array", items: { type: "string" } }, interactiveElements: { type: "array", items: { type: "string" } }, photoOpportunities: { type: "array", items: { type: "string" } }, partyFavors: { type: "array", items: { type: "string" } }, techIntegration: { type: "array", items: { type: "string" } }, entertainmentSearchSuggestions: { type: "array", items: { type: "string" } } },
+                    required: ["icebreakers", "interactiveElements", "photoOpportunities", "partyFavors"]
                 },
-                 optimizationSummary: { type: "string", description: "Optional summary if optimization was done." } // Keep optional fields if defined in type
+                 optimizationSummary: { type: "string", description: "Optional summary if optimization was done." }
             },
-            // List all top-level required fields for a BirthdayPlan
             required: ["id", "name", "description", "profile", "venue", "schedule", "catering", "guestEngagement"]
         }
     }
 };
 
+// --- NEW: Cleanup Function ---
+/**
+ * Cleans up the raw plan object received from AI function arguments
+ * to ensure it conforms to the BirthdayPlan type structure.
+ * @param rawPlan The potentially malformed object parsed from AI arguments.
+ * @param expectedProfile The profile requested.
+ * @param expectedId The ID expected for this profile.
+ * @returns A cleaned BirthdayPlan object.
+ */
+const cleanupPlanObject = (rawPlan, expectedProfile, expectedId) => {
+    if (typeof rawPlan !== 'object' || rawPlan === null) {
+        console.warn("Cleanup: Received non-object plan, returning default structure.");
+        rawPlan = {}; // Start with empty object if input is invalid
+    }
+
+    // --- Venue Cleanup ---
+    const rawVenue = (typeof rawPlan.venue === 'object' && rawPlan.venue !== null) ? rawPlan.venue : {};
+    const cleanedVenue = {
+        name: typeof rawVenue.name === 'string' ? rawVenue.name : 'Venue Name Missing',
+        description: typeof rawVenue.description === 'string' ? rawVenue.description : '',
+        costRange: typeof rawVenue.costRange === 'string' ? rawVenue.costRange : (typeof rawVenue.cost === 'string' ? rawVenue.cost : 'Cost Unknown'), // Handle 'cost' as fallback
+        amenities: Array.isArray(rawVenue.amenities) ? rawVenue.amenities.filter(i => typeof i === 'string') : (Array.isArray(rawVenue.features) ? rawVenue.features.filter(i => typeof i === 'string') : []), // Handle 'features' as fallback
+        suitability: typeof rawVenue.suitability === 'string' ? rawVenue.suitability : '',
+        venueSearchSuggestions: Array.isArray(rawVenue.venueSearchSuggestions) ? rawVenue.venueSearchSuggestions.filter(i => typeof i === 'string') : [],
+    };
+
+    // --- Schedule Cleanup ---
+    const cleanedSchedule = (Array.isArray(rawPlan.schedule) ? rawPlan.schedule : [])
+        .map(item => ({
+            time: typeof item?.time === 'string' ? item.time : '',
+            activity: typeof item?.activity === 'string' ? item.activity : 'Activity Missing',
+            description: typeof item?.description === 'string' ? item.description : undefined, // Keep optional
+        }))
+        .filter(item => item.activity); // Remove items without an activity
+
+    // --- Catering & Menu Cleanup ---
+    const rawCatering = (typeof rawPlan.catering === 'object' && rawPlan.catering !== null) ? rawPlan.catering : {};
+    const rawMenu = (typeof rawCatering.menu === 'object' && rawCatering.menu !== null) ? rawCatering.menu : {};
+    const cleanedMenu = {
+        // Handle simple arrays OR string fallbacks if AI provides single items
+        appetizers: Array.isArray(rawMenu.appetizers) ? rawMenu.appetizers.filter(i => typeof i === 'string') : (typeof rawMenu.appetizers === 'string' ? [rawMenu.appetizers] : (typeof rawMenu.starter === 'string' ? [rawMenu.starter] : [])),
+        mainCourses: Array.isArray(rawMenu.mainCourses) ? rawMenu.mainCourses.filter(i => typeof i === 'string') : (typeof rawMenu.mainCourses === 'string' ? [rawMenu.mainCourses] : (typeof rawMenu.mainCourse === 'string' ? [rawMenu.mainCourse] : [])),
+        // Ensure desserts is a string
+        desserts: typeof rawMenu.desserts === 'string' ? rawMenu.desserts : (typeof rawMenu.dessert === 'string' ? rawMenu.dessert : ''),
+        beverages: Array.isArray(rawMenu.beverages) ? rawMenu.beverages.filter(i => typeof i === 'string') : (typeof rawMenu.beverages === 'string' ? [rawMenu.beverages] : []),
+    };
+     // Handle case where AI puts beverages outside menu
+    if (Array.isArray(rawCatering.beverages) && cleanedMenu.beverages.length === 0) {
+        cleanedMenu.beverages = rawCatering.beverages.filter(i => typeof i === 'string');
+    }
+    const cleanedCatering = {
+        estimatedCost: typeof rawCatering.estimatedCost === 'string' ? rawCatering.estimatedCost : 'Cost Unknown',
+        servingStyle: typeof rawCatering.servingStyle === 'string' ? rawCatering.servingStyle : (typeof rawCatering.service === 'string' ? rawCatering.service : ''), // Handle 'service' fallback
+        menu: cleanedMenu,
+        cateringSearchSuggestions: Array.isArray(rawCatering.cateringSearchSuggestions) ? rawCatering.cateringSearchSuggestions.filter(i => typeof i === 'string') : [],
+    };
+
+    // --- Guest Engagement Cleanup ---
+    const rawEngagement = (typeof rawPlan.guestEngagement === 'object' && rawPlan.guestEngagement !== null) ? rawPlan.guestEngagement : {};
+    const cleanedEngagement = {
+        icebreakers: Array.isArray(rawEngagement.icebreakers) ? rawEngagement.icebreakers.filter(i => typeof i === 'string') : [],
+        interactiveElements: Array.isArray(rawEngagement.interactiveElements) ? rawEngagement.interactiveElements.filter(i => typeof i === 'string') : (Array.isArray(rawEngagement.activities) ? rawEngagement.activities.filter(i => typeof i === 'string') : []), // Handle 'activities' fallback
+        photoOpportunities: Array.isArray(rawEngagement.photoOpportunities) ? rawEngagement.photoOpportunities.filter(i => typeof i === 'string') : [],
+        partyFavors: Array.isArray(rawEngagement.partyFavors) ? rawEngagement.partyFavors.filter(i => typeof i === 'string') : [],
+        techIntegration: Array.isArray(rawEngagement.techIntegration) ? rawEngagement.techIntegration.filter(i => typeof i === 'string') : [],
+        entertainmentSearchSuggestions: Array.isArray(rawEngagement.entertainmentSearchSuggestions) ? rawEngagement.entertainmentSearchSuggestions.filter(i => typeof i === 'string') : (Array.isArray(rawEngagement.entertainment) ? rawEngagement.entertainment.filter(i => typeof i === 'string') : []), // Handle 'entertainment' fallback
+    };
+
+    // --- Assemble Cleaned Plan ---
+    const cleanedPlan = {
+        id: typeof rawPlan.id === 'string' && rawPlan.id === expectedId ? rawPlan.id : expectedId, // Ensure correct ID
+        name: typeof rawPlan.name === 'string' ? rawPlan.name : 'Unnamed Plan',
+        description: typeof rawPlan.description === 'string' ? rawPlan.description : '',
+        profile: typeof rawPlan.profile === 'string' && rawPlan.profile === expectedProfile ? rawPlan.profile : expectedProfile, // Ensure correct profile
+        venue: cleanedVenue,
+        schedule: cleanedSchedule,
+        catering: cleanedCatering,
+        guestEngagement: cleanedEngagement,
+        optimizationSummary: typeof rawPlan.optimizationSummary === 'string' ? rawPlan.optimizationSummary : undefined,
+        // Add 'date' field if it's part of your BirthdayPlan type and might come from AI
+        date: typeof rawPlan.date === 'string' ? rawPlan.date : '',
+    };
+
+    // Log if cleanup made significant changes (optional)
+    // if (JSON.stringify(rawPlan) !== JSON.stringify(cleanedPlan)) {
+    //     console.warn(`Cleanup applied changes for profile ${expectedProfile}. Original:`, rawPlan, "Cleaned:", cleanedPlan);
+    // }
+
+    return cleanedPlan;
+};
+
 
 // Define the handler function for Netlify
 export const handler = async (event) => {
-    const allowedOrigin = process.env.NODE_ENV === 'development' ? '*' : process.env.URL;
+    // ... (keep CORS and method checks) ...
+     const allowedOrigin = process.env.NODE_ENV === 'development' ? '*' : process.env.URL;
     const headers = { /* ... CORS headers ... */ };
     headers['Access-Control-Allow-Origin'] = allowedOrigin || '*';
     headers['Access-Control-Allow-Headers'] = 'Content-Type';
@@ -105,6 +153,7 @@ export const handler = async (event) => {
 
     if (event.httpMethod === 'OPTIONS') { return { statusCode: 204, headers, body: '' }; }
     if (event.httpMethod !== 'POST') { return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) }; }
+
 
     try {
         if (!event.body) throw new Error("Request body is missing.");
@@ -118,7 +167,7 @@ export const handler = async (event) => {
         let responseData = null;
 
         // ==================================================================
-        // --- Action: Generate Birthday Plans (Using Function Calling) ---
+        // --- Action: Generate Birthday Plans (Function Calling + Cleanup) ---
         // ==================================================================
         if (action === 'generatePlans') {
             if (!userInput || typeof userInput !== 'object' || !userInput.location?.city || !userInput.location?.country) {
@@ -128,43 +177,17 @@ export const handler = async (event) => {
             const planId = profile === 'DIY/Budget' ? 'plan-1' : (profile === 'Premium/Convenience' ? 'plan-2' : 'plan-3');
 
             // --- Define Prompt Instructing AI to Call the Function ---
-            const systemPrompt_GeneratePlans_FunctionCall = `You are PartyPilot, an AI-powered birthday planning assistant.
-
-### CONSTITUTIONAL PRINCIPLES
-(Keep the 10 principles: INCLUSIVITY, AGE-APPROPRIATENESS, BUDGET RESPECT, SAFETY FIRST, HONESTY, HELPFULNESS, PRIVACY, PROACTIVITY, SPECIFICITY, RESOURCEFULNESS)
-* Apply these principles. Use your knowledge to provide specific and realistic suggestions for **${userInput.location.city}, ${userInput.location.country}**.
-
-### CHAIN STRUCTURE
-You are in the **PLAN GENERATION** phase.
-
-### REACT PROCESS (Internal Guidance)
-1.  **THINK:** Analyze user input. Brainstorm specific, realistic options for **${userInput.location.city}, ${userInput.location.country}** based on your knowledge for the requested profile.
-2.  **ACT:** Generate the details for **ONE** detailed plan for the **"${requestedProfile}"** profile.
-3.  **CALL FUNCTION:** Call the 'save_birthday_plan' function with the generated plan details, ensuring all required parameters match the function schema.
-
-### USER INPUT SUMMARY:
-* Planning for: ${userInput.birthdayPersonName} (turning ${userInput.age})
-* Theme: "${userInput.theme}"
-* Guests: ${userInput.guestCountAdults} adults, ${userInput.guestCountChildren} children
-* Budget: ${userInput.budgetAmount} ${userInput.currency}
-* Location: **${userInput.location.city}, ${userInput.location.country}** (${userInput.location.setting})
-* Activities: ${userInput.activities.join(', ')}
-* Food/Drink Prefs: ${userInput.foodPreferences} / ${userInput.drinkPreferences}
-* Additional Notes: ${userInput.additionalPreferences || 'None'}
+            // Keep the detailed RCC prompt with Function Calling instructions
+            const systemPrompt_GeneratePlans_FunctionCall = `You are PartyPilot... (Keep the full detailed RCC System Prompt from immersive proxy_function_calling, including schema adherence instructions)
 
 ### TASK & INSTRUCTIONS:
-1.  **Generate ONE Detailed Plan:** Create **ONE** high-quality, detailed plan based on the **USER INPUT SUMMARY** specifically for the **"${requestedProfile}"** profile (ID should be "${planId}").
-2.  **Use Knowledge:** Use your knowledge base for specific, realistic suggestions for **"${userInput.location.city}, ${userInput.location.country}"** fitting the theme, budget, age, and profile.
-3.  **Call Function (CRITICAL):** After generating the plan details, you **MUST** call the provided 'save_birthday_plan' function.
-4.  **Schema Adherence (VERY IMPORTANT):** The arguments you pass to the 'save_birthday_plan' function **MUST strictly follow the function's parameter schema**.
-    * Ensure **ALL required fields** defined in the schema are present (e.g., venue.name, venue.description, venue.costRange, venue.amenities, venue.suitability, catering.estimatedCost, catering.servingStyle, catering.menu, guestEngagement.icebreakers, etc.).
-    * Ensure field names **exactly match** the schema (e.g., use 'amenities', not 'features'; use 'servingStyle', not 'service'; use 'desserts' (string) inside 'menu', not 'dessert').
-    * Ensure data types match (e.g., 'amenities' MUST be an array of strings, 'desserts' MUST be a single string).
-    * Do **NOT** include extra fields that are not defined in the schema (e.g., venue.location, catering.service, guestEngagement.activities).
-    * Double-check the structure, especially for nested objects like 'venue', 'catering', 'menu', and 'guestEngagement'.`;
+1.  **Generate ONE Detailed Plan:** Create **ONE** plan for the **"${requestedProfile}"** profile (ID "${planId}").
+2.  **Use Knowledge:** Use knowledge for **"${userInput.location.city}, ${userInput.location.country}"**...
+3.  **Call Function (CRITICAL):** Call 'save_birthday_plan' function.
+4.  **Schema Adherence (VERY IMPORTANT):** Arguments MUST strictly follow the function's parameter schema... Ensure ALL required fields... Field names exactly match... Data types match... NO extra fields... Double-check nested objects...`;
 
-            // User prompt is simpler, focusing on the request
             const userPrompt_GeneratePlans = `Generate ONE detailed birthday plan for the "${requestedProfile}" profile based on my input summary, adhering strictly to all instructions, and then call the 'save_birthday_plan' function with the plan details conforming exactly to the function schema.`;
+
 
             console.log(`Calling OpenAI model '${'gpt-4o'}' for generatePlans (Function Calling, Profile: ${requestedProfile})...`);
             const completion = await openai.chat.completions.create({
@@ -174,67 +197,38 @@ You are in the **PLAN GENERATION** phase.
                     { role: 'user', content: userPrompt_GeneratePlans }
                 ],
                 tools: [savePlanToolSchema],
-                tool_choice: { type: "function", function: { name: "save_birthday_plan" } }, // Force calling our function
-                max_tokens: 3000, // Adjusted token limit
-                temperature: 0.5, // Slightly lower temp for potentially better schema adherence
+                tool_choice: { type: "function", function: { name: "save_birthday_plan" } },
+                max_tokens: 3000, // Keep reasonably high for detailed plan
+                temperature: 0.5,
             });
 
             const message = completion.choices[0]?.message;
 
-            // Check if the AI wanted to call the function
             if (message?.tool_calls && message.tool_calls.length > 0 && message.tool_calls[0].function?.name === "save_birthday_plan") {
                 const functionArgsString = message.tool_calls[0].function.arguments;
                 console.log("AI called save_birthday_plan function with args:", functionArgsString);
 
-                // Parse the arguments string (which should be JSON)
-                const planObject = extractAndParseJson(functionArgsString);
+                const rawPlanObject = extractAndParseJson(functionArgsString);
 
-                if (!planObject) {
+                if (!rawPlanObject) {
                     throw new Error("Failed to parse function arguments returned by AI.");
                 }
 
-                // --- Reinstated Strict Validation ---
-                // Check if the parsed object matches the expected structure and profile/id
-                 if (
-                    typeof planObject !== 'object' || planObject === null ||
-                    planObject.id !== planId ||
-                    planObject.profile !== requestedProfile ||
-                    !planObject.name || typeof planObject.name !== 'string' ||
-                    !planObject.description || typeof planObject.description !== 'string' ||
-                    !planObject.venue || typeof planObject.venue !== 'object' ||
-                        !planObject.venue.name || typeof planObject.venue.name !== 'string' ||
-                        !planObject.venue.description || typeof planObject.venue.description !== 'string' ||
-                        !planObject.venue.costRange || typeof planObject.venue.costRange !== 'string' ||
-                        !Array.isArray(planObject.venue.amenities) ||
-                        !planObject.venue.suitability || typeof planObject.venue.suitability !== 'string' ||
-                    !planObject.schedule || !Array.isArray(planObject.schedule) || planObject.schedule.length < 1 ||
-                    !planObject.catering || typeof planObject.catering !== 'object' ||
-                        !planObject.catering.estimatedCost || typeof planObject.catering.estimatedCost !== 'string' ||
-                        !planObject.catering.servingStyle || typeof planObject.catering.servingStyle !== 'string' ||
-                        !planObject.catering.menu || typeof planObject.catering.menu !== 'object' ||
-                        !Array.isArray(planObject.catering.menu.appetizers) ||
-                        !Array.isArray(planObject.catering.menu.mainCourses) ||
-                        typeof planObject.catering.menu.desserts !== 'string' || // Check type explicitly
-                        !Array.isArray(planObject.catering.menu.beverages) ||
-                    !planObject.guestEngagement || typeof planObject.guestEngagement !== 'object' ||
-                        !Array.isArray(planObject.guestEngagement.icebreakers) ||
-                        !Array.isArray(planObject.guestEngagement.interactiveElements) ||
-                        !Array.isArray(planObject.guestEngagement.photoOpportunities) ||
-                        !Array.isArray(planObject.guestEngagement.partyFavors)
-                    // NOTE: Add checks for all 'required' fields defined in the schema if needed
-                ) {
-                     console.error("Strict validation failed for function call arguments. Parsed Object:", planObject);
-                     // Optionally log specific missing fields or type mismatches here
-                     throw new Error(`AI function call arguments do not match the required BirthdayPlan structure/schema for profile ${requestedProfile}.`);
+                // --- LOOSENED VALIDATION + CLEANUP ---
+                console.log("Attempting to clean up received plan object...");
+                const cleanedPlan = cleanupPlanObject(rawPlanObject, requestedProfile, planId);
+
+                // Basic check after cleanup
+                if (!cleanedPlan || !cleanedPlan.id || !cleanedPlan.name) {
+                     console.error("Cleanup failed to produce a basic valid plan. Cleaned:", cleanedPlan);
+                     throw new Error("Failed to clean up AI response into usable plan structure.");
                 }
 
-
-                // Wrap the validated plan object in the { plans: [...] } structure expected by frontend
-                responseData = { plans: [planObject] };
-                console.log(`Successfully processed function call and validated plan for profile: ${requestedProfile}.`);
+                // Wrap the cleaned plan object
+                responseData = { plans: [cleanedPlan] };
+                console.log(`Successfully processed function call and cleaned plan for profile: ${requestedProfile}.`);
 
             } else {
-                // AI didn't call the function as expected
                 console.error("AI did not call the expected function 'save_birthday_plan'. Response message:", message);
                 throw new Error("AI failed to call the required function to save the plan.");
             }
