@@ -1,12 +1,21 @@
-# Netlify configuration file
+# Netlify configuration: Build the frontend app residing in the 'frontend' directory.
 
 [build]
-  command = "npm run build" # Your build command
-  publish = "dist"          # Your publish directory
+  # Set the base directory. Netlify will change to this directory before running the build command.
+  base = "frontend"
 
-[functions]
-  directory = "netlify/functions" # Standard directory for Netlify functions
-  # Removed incorrect timeout line - will use Netlify default
-  # Optional: Specify node version for functions if needed
-  # node_bundler = "esbuild"
-  # node_version = "18"
+  # The build command to run (this will be executed inside the 'frontend' directory).
+  # Make sure the 'build' script is correctly defined in 'frontend/package.json'.
+  command = "npm run build"
+
+  # The directory (relative to the root of the repository) that contains the deploy-ready static assets.
+  # Vite typically places the output in a 'dist' folder within the project directory ('frontend/dist').
+  publish = "frontend/dist"
+
+# --- Functions Configuration ---
+# If you are not using Netlify Serverless Functions (Node.js/Go based),
+# this section can be safely removed or commented out to prevent potential conflicts.
+# If you intend to add them later *within* the frontend directory, the path would be relative, e.g., "netlify/functions".
+# If they were in the root, you'd adjust the 'base' or handle them separately.
+# [functions]
+#  directory = "netlify/functions" # Example path, adjust if needed
