@@ -1,21 +1,40 @@
-# Netlify configuration: Build the frontend app residing in the 'frontend' directory.
+# Netlify configuration (ROOT Directory)
+# Build command runs from root package.json located here.
+# Source files are in the 'src/' directory within this root.
 
 [build]
-  # Set the base directory. Netlify will change to this directory before running the build command.
-  base = "frontend"
-
-  # The build command to run (this will be executed inside the 'frontend' directory).
-  # Make sure the 'build' script is correctly defined in 'frontend/package.json'.
+  # The build command to run (executed from this root directory).
+  # Uses the 'build' script in the root package.json.
   command = "npm run build"
 
-  # The directory (relative to the root of the repository) that contains the deploy-ready static assets.
-  # Vite typically places the output in a 'dist' folder within the project directory ('frontend/dist').
-  publish = "frontend/dist"
+  # The directory (relative to this root) containing the deploy-ready static assets.
+  # Since your source is in 'src/', Vite likely outputs to 'dist/' in this root directory.
+  # Verify this in your 'vite.config.js' or 'vite.config.ts' if unsure ('build.outDir').
+  publish = "dist"
 
-# --- Functions Configuration ---
-# If you are not using Netlify Serverless Functions (Node.js/Go based),
-# this section can be safely removed or commented out to prevent potential conflicts.
-# If you intend to add them later *within* the frontend directory, the path would be relative, e.g., "netlify/functions".
-# If they were in the root, you'd adjust the 'base' or handle them separately.
+# If you have Netlify serverless functions (Node.js/Go) in a specific directory
+# relative to this root, uncomment and set the directory below.
 # [functions]
-#  directory = "netlify/functions" # Example path, adjust if needed
+#  directory = "netlify/functions"
+```
+
+**Key Changes:**
+* **NO `base = "..."` line:** This is the critical fix for the error message you received.
+* `publish = "dist"`: Assumes Vite builds into a `dist` folder in the root when run from the root.
+
+**Step 2: Commit and Push the Change**
+
+```bash
+# Stage the corrected Netlify configuration file
+git add netlify.toml
+
+# Commit the change
+git commit -m "fix: Remove incorrect base directory from netlify.toml"
+
+# Push to the main branch
+git push origin main
+```
+
+**Step 3: Redeploy on Netlify**
+
+Trigger one more deployment on Netlify. This should resolve the configuration parsing error. Let's see what the build log shows this ti
