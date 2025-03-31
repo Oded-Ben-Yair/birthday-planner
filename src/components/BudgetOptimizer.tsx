@@ -1,8 +1,8 @@
 // src/components/BudgetOptimizer.tsx
 import { useState } from 'react';
 // Import necessary types
-// Removed unused types: SmartInvitation, Venue, Catering, GuestEngagement, ScheduleItem, CateringMenu
-import type { BirthdayPlan, BudgetPriorities, UserInput } from '../types'; // Keep BudgetPriorities as it's used
+// Removed unused types: SmartInvitation, Venue, Catering, GuestEngagement, ScheduleItem, CateringMenu, and UserInput
+import type { BirthdayPlan, BudgetPriorities } from '../types'; // Keep BudgetPriorities as it's used
 // Import the API utility function
 import { optimizeBudget } from '../utils/api'; // Ensure path is correct
 
@@ -15,8 +15,6 @@ interface BudgetOptimizerProps {
     onPlanUpdate: (plan: BirthdayPlan) => void; // Callback to update the parent with the optimized plan
     numericBudget: number; // The target budget amount
     currency: string; // The currency symbol/code
-    // Note: userInput might be needed if the API requires more context than just the plan
-    // userInput: UserInput; // Add this if optimizeBudget API needs it
 }
 
 /**
@@ -82,8 +80,7 @@ export default function BudgetOptimizer({
             if (result && result.optimizedPlan) {
                 onPlanUpdate(result.optimizedPlan); // Pass the optimized plan back to the parent component
                 console.log("Budget optimization successful.");
-                // Optionally close the modal here if this component controls it,
-                // but typically the parent/modal wrapper handles closing.
+                // Parent/modal wrapper typically handles closing the modal.
             } else {
                 // Handle cases where the API call succeeded but returned an unexpected structure
                 console.error("Invalid response structure from optimizeBudget API:", result);
@@ -162,5 +159,4 @@ export default function BudgetOptimizer({
         </div>
     );
 }
-
 
