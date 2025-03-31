@@ -1,40 +1,12 @@
-# Netlify configuration (ROOT Directory)
-# Build command runs from root package.json located here.
-# Source files are in the 'src/' directory within this root.
+# Netlify configuration file
 
 [build]
-  # The build command to run (executed from this root directory).
-  # Uses the 'build' script in the root package.json.
-  command = "npm run build"
+  command = "npm run build" # Your build command
+  publish = "dist"          # Your publish directory
 
-  # The directory (relative to this root) containing the deploy-ready static assets.
-  # Since your source is in 'src/', Vite likely outputs to 'dist/' in this root directory.
-  # Verify this in your 'vite.config.js' or 'vite.config.ts' if unsure ('build.outDir').
-  publish = "dist"
-
-# If you have Netlify serverless functions (Node.js/Go) in a specific directory
-# relative to this root, uncomment and set the directory below.
-# [functions]
-#  directory = "netlify/functions"
-```
-
-**Key Changes:**
-* **NO `base = "..."` line:** This is the critical fix for the error message you received.
-* `publish = "dist"`: Assumes Vite builds into a `dist` folder in the root when run from the root.
-
-**Step 2: Commit and Push the Change**
-
-```bash
-# Stage the corrected Netlify configuration file
-git add netlify.toml
-
-# Commit the change
-git commit -m "fix: Remove incorrect base directory from netlify.toml"
-
-# Push to the main branch
-git push origin main
-```
-
-**Step 3: Redeploy on Netlify**
-
-Trigger one more deployment on Netlify. This should resolve the configuration parsing error. Let's see what the build log shows this ti
+[functions]
+  directory = "netlify/functions" # Standard directory for Netlify functions
+  # Removed incorrect timeout line - will use Netlify default
+  # Optional: Specify node version for functions if needed
+  # node_bundler = "esbuild"
+  # node_version = "18"
